@@ -11,4 +11,3 @@ require (
 	github.com/spf13/cobra v0.0.5
 )
 
-replace github.com/blugelabs/bluge_segment_api => /home/mschoch/b2/bluge_segment_api
