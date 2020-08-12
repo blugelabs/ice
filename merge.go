@@ -272,19 +272,17 @@ func persistMergedRestField(segments []*Segment, dropsIn []*roaring.Bitmap, fiel
 				return segment.ErrClosed
 			}
 
-			// if the term changed, write out the info collected
-			// for the previous term
-			//err = finishTerm(prevTerm)
-			err = finishTerm(w, newRoaring, tfEncoder, locEncoder, newVellum, bufMaxVarintLen64, prevTerm, &lastDocNum, &lastFreq, &lastNorm)
+			// if the term changed, write out the info collected for the previous term
+			err = finishTerm(w, newRoaring, tfEncoder, locEncoder, newVellum, bufMaxVarintLen64, prevTerm, &lastDocNum,
+				&lastFreq, &lastNorm)
 			if err != nil {
 				return err
 			}
 		}
 
 		if !bytes.Equal(prevTerm, term) || prevTerm == nil {
-			err = prepareNewTerm(newSegDocCount, chunkMode, w, closeCh, newRoaring, tfEncoder, locEncoder, newVellum,
-				bufMaxVarintLen64, fieldFreqs, fieldID, prevTerm, lastDocNum, lastFreq, lastNorm, enumerator, dicts,
-				drops)
+			err = prepareNewTerm(newSegDocCount, chunkMode, tfEncoder, locEncoder, fieldFreqs, fieldID, enumerator,
+				dicts, drops)
 			if err != nil {
 				return err
 			}
@@ -429,10 +427,9 @@ func buildMergedDocVals(newSegDocCount int, w *countHashWriter, closeCh chan str
 	return nil
 }
 
-func prepareNewTerm(newSegDocCount int, chunkMode uint32, w *countHashWriter, closeCh chan struct{},
-	newRoaring *roaring.Bitmap, tfEncoder, locEncoder *chunkedIntCoder, newVellum *vellum.Builder,
-	bufMaxVarintLen64 []byte, fieldFreqs map[uint16]int, fieldID int, prevTerm []byte, lastDocNum int, lastFreq,
-	lastNorm uint64, enumerator *enumerator, dicts []*Dictionary, drops []*roaring.Bitmap) error {
+func prepareNewTerm(newSegDocCount int, chunkMode uint32, tfEncoder, locEncoder *chunkedIntCoder,
+	fieldFreqs map[uint16]int, fieldID int, enumerator *enumerator, dicts []*Dictionary,
+	drops []*roaring.Bitmap) error {
 	var err error
 
 	// compute cardinality of field-term in new seg
