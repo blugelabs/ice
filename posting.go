@@ -712,6 +712,11 @@ func (p *Posting) Number() int {
 	return p.docNum
 }
 
+// SetNumber sets the document number of this posting
+func (p *Posting) SetNumber(n int) {
+	p.docNum = n
+}
+
 // Frequency returns the frequencies of occurrence of this term in this doc/field
 func (p *Posting) Frequency() int {
 	return p.freq
