@@ -661,9 +661,9 @@ func (i *PostingsIterator) currChunkNext(nChunk uint32) error {
 
 // DocNum1Hit returns the docNum and true if this is "1-hit" optimized
 // and the docNum is available.
-func (i *PostingsIterator) DocNum1Hit() (int, bool) {
+func (i *PostingsIterator) DocNum1Hit() (uint64, bool) {
 	if i.normBits1Hit != 0 && i.docNum1Hit != docNum1HitFinished {
-		return int(i.docNum1Hit), true
+		return i.docNum1Hit, true
 	}
 	return 0, false
 }
