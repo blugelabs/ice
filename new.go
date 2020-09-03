@@ -310,6 +310,7 @@ func (s *interim) convert() (*footer, []uint64, error) {
 		storedIndexOffset: storedIndexOffset,
 		fieldsIndexOffset: fieldsIndexOffset,
 		docValueOffset:    fdvIndexOffset,
+		version:           Version,
 	}, dictOffsets, nil
 }
 
