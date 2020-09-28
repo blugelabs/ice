@@ -38,8 +38,8 @@ func load(data *segment.Data) (*Segment, error) {
 		fieldsMap:      make(map[string]uint16),
 		fieldDvReaders: make(map[uint16]*docValueReader),
 		fieldFSTs:      make(map[uint16]*vellum.FST),
-		fieldDocs:      make(map[uint16]int),
-		fieldFreqs:     make(map[uint16]int),
+		fieldDocs:      make(map[uint16]uint64),
+		fieldFreqs:     make(map[uint16]uint64),
 	}
 
 	// FIXME temporarily map to existing footer fields
@@ -121,8 +121,8 @@ func (s *Segment) loadFields() error {
 		name := string(nameData)
 		s.fieldsInv = append(s.fieldsInv, name)
 		s.fieldsMap[name] = uint16(fieldID + 1)
-		s.fieldDocs[uint16(fieldID)] = int(fieldDocVal)
-		s.fieldFreqs[uint16(fieldID)] = int(fieldFreqVal)
+		s.fieldDocs[uint16(fieldID)] = fieldDocVal
+		s.fieldFreqs[uint16(fieldID)] = fieldFreqVal
 
 		fieldID++
 	}

@@ -22,16 +22,16 @@ import (
 
 func TestChunkIntCoder(t *testing.T) {
 	tests := []struct {
-		maxDocNum int
-		chunkSize int
-		docNums   []int
+		maxDocNum uint64
+		chunkSize uint64
+		docNums   []uint64
 		vals      [][]uint64
 		expected  []byte
 	}{
 		{
 			maxDocNum: 0,
 			chunkSize: 1,
-			docNums:   []int{0},
+			docNums:   []uint64{0},
 			vals: [][]uint64{
 				{3},
 			},
@@ -41,7 +41,7 @@ func TestChunkIntCoder(t *testing.T) {
 		{
 			maxDocNum: 1,
 			chunkSize: 1,
-			docNums:   []int{0, 1},
+			docNums:   []uint64{0, 1},
 			vals: [][]uint64{
 				{3},
 				{7},

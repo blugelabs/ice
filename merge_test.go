@@ -196,7 +196,7 @@ func testMergeWithEmptySegments(t *testing.T, before bool, numEmptySegments int)
 	testMergeWithSelf(t, segCur, 2)
 }
 
-func testMergeWithSelf(t *testing.T, segCur *Segment, expectedCount int) {
+func testMergeWithSelf(t *testing.T, segCur *Segment, expectedCount uint64) {
 	// trying merging the segment with itself for a few rounds
 	var diffs []string
 
@@ -587,7 +587,7 @@ func TestMergeWithUpdatesOnOneDoc(t *testing.T) {
 	testMergeWithUpdates(t, segmentDocIds, docsToDrop, 5)
 }
 
-func testMergeWithUpdates(t *testing.T, segmentDocIds [][]string, docsToDrop []*roaring.Bitmap, expectedNumDocs int) {
+func testMergeWithUpdates(t *testing.T, segmentDocIds [][]string, docsToDrop []*roaring.Bitmap, expectedNumDocs uint64) {
 	var segsToMerge []segment.Segment
 
 	// convert segmentDocIds to segsToMerge
@@ -618,7 +618,7 @@ func testMergeWithUpdates(t *testing.T, segmentDocIds [][]string, docsToDrop []*
 	testMergeAndDropSegments(t, segsToMerge, docsToDrop, expectedNumDocs)
 }
 
-func testMergeAndDropSegments(t *testing.T, segsToMerge []segment.Segment, docsToDrop []*roaring.Bitmap, expectedNumDocs int) {
+func testMergeAndDropSegments(t *testing.T, segsToMerge []segment.Segment, docsToDrop []*roaring.Bitmap, expectedNumDocs uint64) {
 	_ = os.RemoveAll("/tmp/segment-merged.ice")
 
 	_, err := mergeSegments(segsToMerge, docsToDrop, "/tmp/segment-merged.ice")
@@ -750,10 +750,10 @@ func TestMergeBytesWritten(t *testing.T) {
 }
 
 func TestUnder32Bits(t *testing.T) {
-	if !under32Bits(0) || !under32Bits(int(0x7fffffff)) {
+	if !under32Bits(0) || !under32Bits(uint64(0x7fffffff)) {
 		t.Errorf("under32Bits bad")
 	}
-	if under32Bits(int(0x80000000)) || under32Bits(int(0x80000001)) {
+	if under32Bits(uint64(0x80000000)) || under32Bits(uint64(0x80000001)) {
 		t.Errorf("under32Bits wrong")
 	}
 }

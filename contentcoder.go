@@ -27,8 +27,8 @@ var termSeparatorSplitSlice = []byte{termSeparator}
 
 type chunkedContentCoder struct {
 	final     []byte
-	chunkSize int
-	currChunk int
+	chunkSize uint64
+	currChunk uint64
 	chunkLens []uint64
 
 	w                io.Writer
@@ -51,7 +51,7 @@ type metaData struct {
 
 // newChunkedContentCoder returns a new chunk content coder which
 // packs data into chunks based on the provided chunkSize
-func newChunkedContentCoder(chunkSize, maxDocNum int,
+func newChunkedContentCoder(chunkSize, maxDocNum uint64,
 	w io.Writer, progressiveWrite bool) *chunkedContentCoder {
 	total := maxDocNum/chunkSize + 1
 	rv := &chunkedContentCoder{
@@ -78,8 +78,8 @@ func (c *chunkedContentCoder) Reset() {
 	c.chunkMeta = c.chunkMeta[:0]
 }
 
-func (c *chunkedContentCoder) SetChunkSize(chunkSize, maxDocNum int) {
-	total := maxDocNum/chunkSize + 1
+func (c *chunkedContentCoder) SetChunkSize(chunkSize, maxDocNum uint64) {
+	total := int(maxDocNum/chunkSize + 1)
 	c.chunkSize = chunkSize
 	if cap(c.chunkLens) < total {
 		c.chunkLens = make([]uint64, total)
@@ -136,7 +136,7 @@ func (c *chunkedContentCoder) flushContents() error {
 
 // Add encodes the provided byte slice into the correct chunk for the provided
 // doc num.  You MUST call Add() with increasing docNums.
-func (c *chunkedContentCoder) Add(docNum int, vals []byte) error {
+func (c *chunkedContentCoder) Add(docNum uint64, vals []byte) error {
 	chunk := docNum / c.chunkSize
 	if chunk != c.currChunk {
 		// flush out the previous chunk details
@@ -159,7 +159,7 @@ func (c *chunkedContentCoder) Add(docNum int, vals []byte) error {
 	}
 
 	c.chunkMeta = append(c.chunkMeta, metaData{
-		DocNum:      uint64(docNum),
+		DocNum:      docNum,
 		DocDvOffset: uint64(dvOffset + dvSize),
 	})
 	return nil

@@ -38,8 +38,8 @@ type Segment struct {
 
 	fieldsMap  map[string]uint16 // fieldName -> fieldID+1
 	fieldsInv  []string          // fieldID -> fieldName
-	fieldDocs  map[uint16]int    // fieldID -> # docs with value in field
-	fieldFreqs map[uint16]int    // fieldID -> # total tokens in field
+	fieldDocs  map[uint16]uint64 // fieldID -> # docs with value in field
+	fieldFreqs map[uint16]uint64 // fieldID -> # total tokens in field
 
 	dictLocs       []uint64
 	fieldDvReaders map[uint16]*docValueReader // naive chunk cache per field
@@ -182,16 +182,16 @@ var visitDocumentCtxPool = sync.Pool{
 
 // VisitStoredFields invokes the DocFieldValueVistor for each stored field
 // for the specified doc number
-func (s *Segment) VisitStoredFields(num int, visitor segment.StoredFieldVisitor) error {
+func (s *Segment) VisitStoredFields(num uint64, visitor segment.StoredFieldVisitor) error {
 	vdc := visitDocumentCtxPool.Get().(*visitDocumentCtx)
 	defer visitDocumentCtxPool.Put(vdc)
 	return s.visitDocument(vdc, num, visitor)
 }
 
-func (s *Segment) visitDocument(vdc *visitDocumentCtx, num int,
+func (s *Segment) visitDocument(vdc *visitDocumentCtx, num uint64,
 	visitor segment.StoredFieldVisitor) error {
 	// first make sure this is a valid number in this segment
-	if num < int(s.footer.numDocs) {
+	if num < s.footer.numDocs {
 		meta, compressed, err := s.getDocStoredMetaAndCompressed(num)
 		if err != nil {
 			return err
@@ -232,8 +232,8 @@ func (s *Segment) visitDocument(vdc *visitDocumentCtx, num int,
 }
 
 // Count returns the number of documents in this segment.
-func (s *Segment) Count() int {
-	return int(s.footer.numDocs)
+func (s *Segment) Count() uint64 {
+	return s.footer.numDocs
 }
 
 func (s *Segment) DocsMatchingTerms(terms []segment.Term) (*roaring.Bitmap, error) {

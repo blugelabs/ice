@@ -86,7 +86,7 @@ func newWithChunkMode(results []segment.Document, normCalc func(string, int) flo
 
 func initSegmentBase(mem []byte, footer *footer,
 	fieldsMap map[string]uint16, fieldsInv []string,
-	fieldsDocs, fieldsFreqs map[uint16]int,
+	fieldsDocs, fieldsFreqs map[uint16]uint64,
 	dictLocs []uint64) (*Segment, error) {
 	sb := &Segment{
 		data:           segment.NewDataBytes(mem),
@@ -130,11 +130,11 @@ type interim struct {
 
 	// FieldDocs tracks how many documents have at least one value
 	// for each field
-	FieldDocs map[uint16]int
+	FieldDocs map[uint16]uint64
 
 	// FieldFreqs tracks how many total tokens there are in a field
 	// across all documents
-	FieldFreqs map[uint16]int
+	FieldFreqs map[uint16]uint64
 
 	// Term dictionaries for each field
 	//  field id -> term -> postings list id + 1
@@ -251,8 +251,8 @@ type interimLoc struct {
 
 func (s *interim) convert() (*footer, []uint64, error) {
 	s.FieldsMap = map[string]uint16{}
-	s.FieldDocs = map[uint16]int{}
-	s.FieldFreqs = map[uint16]int{}
+	s.FieldDocs = map[uint16]uint64{}
+	s.FieldFreqs = map[uint16]uint64{}
 
 	// FIXME review if this is still necessary
 	// YES, integration tests fail when removed
@@ -405,7 +405,7 @@ func (s *interim) prepareDictsForDocument(result segment.Document, pidNext, totL
 		fieldID := uint16(s.getOrDefineField(field.Name()))
 
 		fieldsSeen[fieldID] = struct{}{}
-		s.FieldFreqs[fieldID] += field.Length()
+		s.FieldFreqs[fieldID] += uint64(field.Length())
 
 		dict := s.Dicts[fieldID]
 		dictKeys := s.DictKeys[fieldID]
@@ -653,8 +653,8 @@ func (s *interim) writeDicts() (fdvIndexOffset uint64, dictOffsets []uint64, err
 	// these int coders are initialized with chunk size 1024
 	// however this will be reset to the correct chunk size
 	// while processing each individual field-term section
-	tfEncoder := newChunkedIntCoder(int(legacyChunkMode), len(s.results)-1)
-	locEncoder := newChunkedIntCoder(int(legacyChunkMode), len(s.results)-1)
+	tfEncoder := newChunkedIntCoder(uint64(legacyChunkMode), uint64(len(s.results)-1))
+	locEncoder := newChunkedIntCoder(uint64(legacyChunkMode), uint64(len(s.results)-1))
 
 	var docTermMap [][]byte
 
@@ -747,11 +747,11 @@ func (s *interim) writeDictsField(docTermMap [][]byte, fieldID int, terms []stri
 	if err != nil {
 		return err
 	}
-	fdvEncoder := newChunkedContentCoder(chunkSize, len(s.results)-1, s.w, false)
+	fdvEncoder := newChunkedContentCoder(chunkSize, uint64(len(s.results)-1), s.w, false)
 	if s.IncludeDocValues[fieldID] {
 		for docNum, docTerms := range docTermMap {
 			if len(docTerms) > 0 {
-				err = fdvEncoder.Add(docNum, docTerms)
+				err = fdvEncoder.Add(uint64(docNum), docTerms)
 				if err != nil {
 					return err
 				}
@@ -791,16 +791,16 @@ func (s *interim) writeDictsTermField(docTermMap [][]byte, dict map[string]uint6
 	locs := s.Locs[pid]
 	locOffset := 0
 
-	chunkSize, err := getChunkSize(s.chunkMode, int(postingsBS.GetCardinality()), len(s.results))
+	chunkSize, err := getChunkSize(s.chunkMode, postingsBS.GetCardinality(), uint64(len(s.results)))
 	if err != nil {
 		return err
 	}
-	tfEncoder.SetChunkSize(chunkSize, len(s.results)-1)
-	locEncoder.SetChunkSize(chunkSize, len(s.results)-1)
+	tfEncoder.SetChunkSize(chunkSize, uint64(len(s.results)-1))
+	locEncoder.SetChunkSize(chunkSize, uint64(len(s.results)-1))
 
 	postingsItr := postingsBS.Iterator()
 	for postingsItr.HasNext() {
-		docNum := int(postingsItr.Next())
+		docNum := uint64(postingsItr.Next())
 
 		freqNorm := freqNorms[freqNormOffset]
 

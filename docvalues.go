@@ -34,7 +34,7 @@ type docVisitState struct {
 
 type docValueReader struct {
 	field          string
-	curChunkNum    int
+	curChunkNum    uint64
 	chunkOffsets   []uint64
 	dvDataLoc      uint64
 	curChunkHeader []metaData
@@ -66,7 +66,7 @@ func (di *docValueReader) cloneInto(rv *docValueReader) *docValueReader {
 	return rv
 }
 
-func (di *docValueReader) curChunkNumber() int {
+func (di *docValueReader) curChunkNumber() uint64 {
 	return di.curChunkNum
 }
 
@@ -130,11 +130,11 @@ func (s *Segment) loadFieldDocValueReader(field string,
 	return fdvIter, nil
 }
 
-func (di *docValueReader) loadDvChunk(chunkNumber int, s *Segment) error {
+func (di *docValueReader) loadDvChunk(chunkNumber uint64, s *Segment) error {
 	// advance to the chunk where the docValues
 	// reside for the given docNum
 	destChunkDataLoc, curChunkEnd := di.dvDataLoc, di.dvDataLoc
-	start, end := readChunkBoundary(chunkNumber, di.chunkOffsets)
+	start, end := readChunkBoundary(int(chunkNumber), di.chunkOffsets)
 	if start >= end {
 		di.curChunkHeader = di.curChunkHeader[:0]
 		di.curChunkData = nil
@@ -194,7 +194,7 @@ func (di *docValueReader) loadDvChunk(chunkNumber int, s *Segment) error {
 
 func (di *docValueReader) iterateAllDocValues(s *Segment, visitor docNumTermsVisitor) error {
 	for i := 0; i < len(di.chunkOffsets); i++ {
-		err := di.loadDvChunk(i, s)
+		err := di.loadDvChunk(uint64(i), s)
 		if err != nil {
 			return err
 		}
@@ -223,7 +223,7 @@ func (di *docValueReader) iterateAllDocValues(s *Segment, visitor docNumTermsVis
 	return nil
 }
 
-func (di *docValueReader) visitDocValues(docNum int,
+func (di *docValueReader) visitDocValues(docNum uint64,
 	visitor segment.DocumentValueVisitor) error {
 	// binary search the term locations for the docNum
 	start, end := di.getDocValueLocs(docNum)
@@ -260,11 +260,11 @@ func (di *docValueReader) visitDocValues(docNum int,
 	return nil
 }
 
-func (di *docValueReader) getDocValueLocs(docNum int) (start, end uint64) {
+func (di *docValueReader) getDocValueLocs(docNum uint64) (start, end uint64) {
 	i := sort.Search(len(di.curChunkHeader), func(i int) bool {
-		return di.curChunkHeader[i].DocNum >= uint64(docNum)
+		return di.curChunkHeader[i].DocNum >= docNum
 	})
-	if i < len(di.curChunkHeader) && di.curChunkHeader[i].DocNum == uint64(docNum) {
+	if i < len(di.curChunkHeader) && di.curChunkHeader[i].DocNum == docNum {
 		return readDocValueBoundary(i, di.curChunkHeader)
 	}
 	return math.MaxUint64, math.MaxUint64
@@ -272,7 +272,7 @@ func (di *docValueReader) getDocValueLocs(docNum int) (start, end uint64) {
 
 // VisitDocumentFieldTerms is an implementation of the
 // DocumentFieldTermVisitable interface
-func (s *Segment) visitDocumentFieldTerms(localDocNum int, fields []string,
+func (s *Segment) visitDocumentFieldTerms(localDocNum uint64, fields []string,
 	visitor segment.DocumentValueVisitor, dvs *docVisitState) (
 	*docVisitState, error) {
 	if dvs == nil {
@@ -334,7 +334,7 @@ type DocumentValueReader struct {
 	segment *Segment
 }
 
-func (d *DocumentValueReader) VisitDocumentValues(number int, visitor segment.DocumentValueVisitor) error {
+func (d *DocumentValueReader) VisitDocumentValues(number uint64, visitor segment.DocumentValueVisitor) error {
 	state, err := d.segment.visitDocumentFieldTerms(number, d.fields, visitor, d.state)
 	if err != nil {
 		return err

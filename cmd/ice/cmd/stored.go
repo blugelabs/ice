@@ -33,7 +33,7 @@ var storedCmd = &cobra.Command{
 			return fmt.Errorf("must specify doc number")
 		}
 
-		docNum, err := strconv.Atoi(args[1])
+		docNum, err := strconv.ParseUint(args[1], 10, 64)
 		if err != nil {
 			return fmt.Errorf("unable to parse doc number: %v", err)
 		}

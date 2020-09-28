@@ -21,16 +21,16 @@ import (
 
 func TestChunkedContentCoder(t *testing.T) {
 	tests := []struct {
-		maxDocNum int
-		chunkSize int
-		docNums   []int
+		maxDocNum uint64
+		chunkSize uint64
+		docNums   []uint64
 		vals      [][]byte
 		expected  []byte
 	}{
 		{
 			maxDocNum: 0,
 			chunkSize: 1,
-			docNums:   []int{0},
+			docNums:   []uint64{0},
 			vals:      [][]byte{[]byte("bluge")},
 			// 1 chunk, chunk-0 length 11(b), value
 			expected: []byte{0x1, 0x0, 0x5, 0x5, 0x10, 'b', 'l', 'u', 'g', 'e',
@@ -41,7 +41,7 @@ func TestChunkedContentCoder(t *testing.T) {
 		{
 			maxDocNum: 1,
 			chunkSize: 1,
-			docNums:   []int{0, 1},
+			docNums:   []uint64{0, 1},
 			vals: [][]byte{
 				[]byte("upside"),
 				[]byte("scorch"),
@@ -77,9 +77,9 @@ func TestChunkedContentCoder(t *testing.T) {
 }
 
 func TestChunkedContentCoders(t *testing.T) {
-	maxDocNum := 5
-	chunkSize := 1
-	docNums := []int{0, 1, 2, 3, 4, 5}
+	maxDocNum := uint64(5)
+	chunkSize := uint64(1)
+	docNums := []uint64{0, 1, 2, 3, 4, 5}
 	vals := [][]byte{
 		[]byte("scorch"),
 		[]byte("does"),

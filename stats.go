@@ -19,20 +19,20 @@ import (
 )
 
 type CollectionStats struct {
-	totalDocCount    int
-	docCount         int
-	sumTotalTermFreq int
+	totalDocCount    uint64
+	docCount         uint64
+	sumTotalTermFreq uint64
 }
 
-func (c *CollectionStats) TotalDocumentCount() int {
+func (c *CollectionStats) TotalDocumentCount() uint64 {
 	return c.totalDocCount
 }
 
-func (c *CollectionStats) DocumentCount() int {
+func (c *CollectionStats) DocumentCount() uint64 {
 	return c.docCount
 }
 
-func (c *CollectionStats) SumTotalTermFrequency() int {
+func (c *CollectionStats) SumTotalTermFrequency() uint64 {
 	return c.sumTotalTermFreq
 }
 
@@ -46,7 +46,7 @@ func (s *Segment) CollectionStats(field string) (segment.CollectionStats, error)
 	var rv = &CollectionStats{}
 	fieldIDPlus1 := s.fieldsMap[field]
 	if fieldIDPlus1 > 0 {
-		rv.totalDocCount = int(s.footer.numDocs)
+		rv.totalDocCount = s.footer.numDocs
 		rv.docCount = s.fieldDocs[fieldIDPlus1-1]
 		rv.sumTotalTermFreq = s.fieldFreqs[fieldIDPlus1-1]
 	}

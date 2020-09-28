@@ -28,10 +28,10 @@ const termNotEncoded = 0
 
 type chunkedIntCoder struct {
 	final     []byte
-	chunkSize int
+	chunkSize uint64
 	chunkBuf  bytes.Buffer
 	chunkLens []uint64
-	currChunk int
+	currChunk uint64
 
 	buf []byte
 }
@@ -39,7 +39,7 @@ type chunkedIntCoder struct {
 // newChunkedIntCoder returns a new chunk int coder which packs data into
 // chunks based on the provided chunkSize and supports up to the specified
 // maxDocNum
-func newChunkedIntCoder(chunkSize, maxDocNum int) *chunkedIntCoder {
+func newChunkedIntCoder(chunkSize, maxDocNum uint64) *chunkedIntCoder {
 	total := maxDocNum/chunkSize + 1
 	rv := &chunkedIntCoder{
 		chunkSize: chunkSize,
@@ -63,8 +63,8 @@ func (c *chunkedIntCoder) Reset() {
 
 // SetChunkSize changes the chunk size.  It is only valid to do so
 // with a new chunkedIntCoder, or immediately after calling Reset()
-func (c *chunkedIntCoder) SetChunkSize(chunkSize, maxDocNum int) {
-	total := maxDocNum/chunkSize + 1
+func (c *chunkedIntCoder) SetChunkSize(chunkSize, maxDocNum uint64) {
+	total := int(maxDocNum/chunkSize + 1)
 	c.chunkSize = chunkSize
 	if cap(c.chunkLens) < total {
 		c.chunkLens = make([]uint64, total)
@@ -75,7 +75,7 @@ func (c *chunkedIntCoder) SetChunkSize(chunkSize, maxDocNum int) {
 
 // Add encodes the provided integers into the correct chunk for the provided
 // doc num.  You MUST call Add() with increasing docNums.
-func (c *chunkedIntCoder) Add(docNum int, vals ...uint64) error {
+func (c *chunkedIntCoder) Add(docNum uint64, vals ...uint64) error {
 	chunk := docNum / c.chunkSize
 	if chunk != c.currChunk {
 		// starting a new chunk
@@ -105,7 +105,7 @@ func (c *chunkedIntCoder) Close() {
 	encodingBytes := c.chunkBuf.Bytes()
 	c.chunkLens[c.currChunk] = uint64(len(encodingBytes))
 	c.final = append(c.final, encodingBytes...)
-	c.currChunk = cap(c.chunkLens) // sentinel to detect double close
+	c.currChunk = uint64(cap(c.chunkLens)) // sentinel to detect double close
 }
 
 // Write commits all the encoded chunked integers to the provided writer.

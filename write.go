@@ -55,7 +55,7 @@ func encodeStoredFieldValues(fieldID int,
 }
 
 func writePostings(postings *roaring.Bitmap, tfEncoder, locEncoder *chunkedIntCoder,
-	use1HitEncoding func(uint64) (bool, int, uint64),
+	use1HitEncoding func(uint64) (bool, uint64, uint64),
 	w *countHashWriter, bufMaxVarintLen64 []byte) (
 	offset uint64, err error) {
 	termCardinality := postings.GetCardinality()
@@ -152,7 +152,7 @@ func writeRoaringWithLen(r *roaring.Bitmap, w io.Writer,
 	return tw, nil
 }
 
-func persistFields(fieldsInv []string, fieldDocs, fieldFreqs map[uint16]int,
+func persistFields(fieldsInv []string, fieldDocs, fieldFreqs map[uint16]uint64,
 	w *countHashWriter, dictLocs []uint64) (uint64, error) {
 	var rv uint64
 	var fieldsOffsets []uint64
@@ -175,7 +175,7 @@ func persistFields(fieldsInv []string, fieldDocs, fieldFreqs map[uint16]int,
 
 		// write out the number of docs using this field
 		// and the number of total tokens
-		err = writeUvarints(w, uint64(fieldDocs[uint16(fieldID)]), uint64(fieldFreqs[uint16(fieldID)]))
+		err = writeUvarints(w, fieldDocs[uint16(fieldID)], fieldFreqs[uint16(fieldID)])
 		if err != nil {
 			return 0, err
 		}

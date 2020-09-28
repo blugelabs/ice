@@ -58,8 +58,8 @@ const fSTValEncodingMask = uint64(fSTValEncodingMaskRaw)
 const fSTValEncoding1HitRaw = 0x8000000000000000
 const fSTValEncoding1Hit = uint64(fSTValEncoding1HitRaw)
 
-func fSTValEncode1Hit(docNum int, normBits uint64) uint64 {
-	return fSTValEncoding1Hit | ((mask31Bits & normBits) << 31) | (mask31Bits & uint64(docNum))
+func fSTValEncode1Hit(docNum, normBits uint64) uint64 {
+	return fSTValEncoding1Hit | ((mask31Bits & normBits) << 31) | (mask31Bits & docNum)
 }
 
 func fSTValDecode1Hit(v uint64) (docNum, normBits uint64) {
@@ -69,8 +69,8 @@ func fSTValDecode1Hit(v uint64) (docNum, normBits uint64) {
 const mask31BitsRaw = 0x000000007fffffff
 const mask31Bits = uint64(mask31BitsRaw)
 
-func under32Bits(x int) bool {
-	return uint64(x) <= mask31Bits
+func under32Bits(x uint64) bool {
+	return x <= mask31Bits
 }
 
 const docNum1HitFinished = math.MaxUint64
@@ -89,7 +89,7 @@ type PostingsList struct {
 	docNum1Hit   uint64
 	normBits1Hit uint64
 
-	chunkSize int
+	chunkSize uint64
 }
 
 // represents an immutable, empty postings list
@@ -218,17 +218,17 @@ func (p *PostingsList) iterator(includeFreq, includeNorm, includeLocs bool,
 }
 
 // Count returns the number of items on this postings list
-func (p *PostingsList) Count() int {
-	var n, e int
+func (p *PostingsList) Count() uint64 {
+	var n, e uint64
 	if p.normBits1Hit != 0 {
 		n = 1
 		if p.except != nil && p.except.Contains(uint32(p.docNum1Hit)) {
 			e = 1
 		}
 	} else if p.postings != nil {
-		n = int(p.postings.GetCardinality())
+		n = p.postings.GetCardinality()
 		if p.except != nil {
-			e = int(p.postings.AndCardinality(p.except))
+			e = p.postings.AndCardinality(p.except)
 		}
 	}
 	return n - e
@@ -283,7 +283,7 @@ func (p *PostingsList) read(postingsOffset uint64, d *Dictionary) error {
 	}
 
 	p.chunkSize, err = getChunkSize(d.sb.footer.chunkMode,
-		int(p.postings.GetCardinality()), int(d.sb.footer.numDocs))
+		p.postings.GetCardinality(), d.sb.footer.numDocs)
 	if err != nil {
 		return err
 	}
@@ -447,14 +447,14 @@ func (i *PostingsIterator) Next() (segment.Posting, error) {
 
 // Advance returns the posting at the specified docNum or it is not present
 // the next posting, or if the end is reached, nil
-func (i *PostingsIterator) Advance(docNum int) (segment.Posting, error) {
+func (i *PostingsIterator) Advance(docNum uint64) (segment.Posting, error) {
 	return i.nextAtOrAfter(docNum)
 }
 
 const locSliceGrowth = 2
 
 // Next returns the next posting on the postings list, or nil at the end
-func (i *PostingsIterator) nextAtOrAfter(atOrAfter int) (segment.Posting, error) {
+func (i *PostingsIterator) nextAtOrAfter(atOrAfter uint64) (segment.Posting, error) {
 	docNum, exists, err := i.nextDocNumAtOrAfter(atOrAfter)
 	if err != nil || !exists {
 		return nil, err
@@ -515,19 +515,19 @@ func (i *PostingsIterator) nextAtOrAfter(atOrAfter int) (segment.Posting, error)
 
 // nextDocNum returns the next docNum on the postings list, and also
 // sets up the currChunk / loc related fields of the iterator.
-func (i *PostingsIterator) nextDocNumAtOrAfter(atOrAfter int) (docNum int, exists bool, err error) {
+func (i *PostingsIterator) nextDocNumAtOrAfter(atOrAfter uint64) (docNum uint64, exists bool, err error) {
 	if i.normBits1Hit != 0 {
 		if i.docNum1Hit == docNum1HitFinished {
 			return 0, false, nil
 		}
-		if int(i.docNum1Hit) < atOrAfter {
+		if i.docNum1Hit < atOrAfter {
 			// advanced past our 1-hit
 			i.docNum1Hit = docNum1HitFinished // consume our 1-hit docNum
 			return 0, false, nil
 		}
 		docNum := i.docNum1Hit
 		i.docNum1Hit = docNum1HitFinished // consume our 1-hit docNum
-		return int(docNum), true, nil
+		return docNum, true, nil
 	}
 
 	if i.Actual == nil || !i.Actual.HasNext() {
@@ -575,13 +575,13 @@ func (i *PostingsIterator) nextDocNumAtOrAfter(atOrAfter int) (docNum int, exist
 		}
 	}
 
-	return int(n), true, nil
+	return uint64(n), true, nil
 }
 
 // optimization when the postings list is "clean" (e.g., no updates &
 // no deletions) where the all bitmap is the same as the actual bitmap
 func (i *PostingsIterator) nextDocNumAtOrAfterClean(
-	atOrAfter int) (docNum int, exists bool, err error) {
+	atOrAfter uint64) (docNum uint64, exists bool, err error) {
 	if !i.includeFreqNorm {
 		i.Actual.AdvanceIfNeeded(uint32(atOrAfter))
 
@@ -589,7 +589,7 @@ func (i *PostingsIterator) nextDocNumAtOrAfterClean(
 			return 0, false, nil // couldn't find anything
 		}
 
-		return int(i.Actual.Next()), true, nil
+		return uint64(i.Actual.Next()), true, nil
 	}
 
 	// freq-norm's needed, so maintain freq-norm chunk reader
@@ -597,7 +597,7 @@ func (i *PostingsIterator) nextDocNumAtOrAfterClean(
 	n := i.Actual.Next()
 	nChunk := n / uint32(i.postings.chunkSize)
 
-	for int(n) < atOrAfter && i.Actual.HasNext() {
+	for uint64(n) < atOrAfter && i.Actual.HasNext() {
 		n = i.Actual.Next()
 
 		nChunkPrev := nChunk
@@ -610,7 +610,7 @@ func (i *PostingsIterator) nextDocNumAtOrAfterClean(
 		}
 	}
 
-	if int(n) < atOrAfter {
+	if uint64(n) < atOrAfter {
 		// couldn't find anything
 		return 0, false, nil
 	}
@@ -629,7 +629,7 @@ func (i *PostingsIterator) nextDocNumAtOrAfterClean(
 		}
 	}
 
-	return int(n), true, nil
+	return uint64(n), true, nil
 }
 
 func (i *PostingsIterator) currChunkNext(nChunk uint32) error {
@@ -681,7 +681,7 @@ func (i *PostingsIterator) ReplaceActual(abm *roaring.Bitmap) {
 	i.Actual = abm.Iterator()
 }
 
-func (i *PostingsIterator) Count() int {
+func (i *PostingsIterator) Count() uint64 {
 	return i.postings.Count()
 }
 
@@ -691,7 +691,7 @@ func (i *PostingsIterator) Close() error {
 
 // Posting is a single entry in a postings list
 type Posting struct {
-	docNum int
+	docNum uint64
 	freq   int
 	norm   float32
 	locs   []segment.Location
@@ -708,12 +708,12 @@ func (p *Posting) Size() int {
 }
 
 // Number returns the document number of this posting in this segment
-func (p *Posting) Number() int {
+func (p *Posting) Number() uint64 {
 	return p.docNum
 }
 
 // SetNumber sets the document number of this posting
-func (p *Posting) SetNumber(n int) {
+func (p *Posting) SetNumber(n uint64) {
 	p.docNum = n
 }
 

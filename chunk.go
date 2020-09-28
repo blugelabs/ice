@@ -30,12 +30,12 @@ const chunkModeV1 uint32 = 1025
 // be used by default.
 const defaultChunkMode uint32 = chunkModeV1
 
-func getChunkSize(chunkMode uint32, cardinality, maxDocs int) (int, error) {
+func getChunkSize(chunkMode uint32, cardinality, maxDocs uint64) (uint64, error) {
 	switch {
 	// any chunkMode <= 1024 will always chunk with chunkSize=chunkMode
 	case chunkMode <= legacyChunkMode:
 		// legacy chunk size
-		return int(chunkMode), nil
+		return uint64(chunkMode), nil
 
 	case chunkMode == chunkModeV1:
 		// the observation that the fewest number of dense chunks is the most

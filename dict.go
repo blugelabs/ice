@@ -167,13 +167,13 @@ func (i *DictionaryIterator) Close() error {
 
 type DictEntry struct {
 	term  string
-	count int
+	count uint64
 }
 
 func (d *DictEntry) Term() string {
 	return d.term
 }
 
-func (d *DictEntry) Count() int {
+func (d *DictEntry) Count() uint64 {
 	return d.count
 }

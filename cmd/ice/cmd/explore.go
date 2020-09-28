@@ -45,7 +45,7 @@ var exploreCmd = &cobra.Command{
 		case modeExplorePostingsList:
 			return explorePostingsList(args[1], args[2])
 		case modeExplorePosting:
-			docNum, err := strconv.Atoi(args[3])
+			docNum, err := strconv.ParseUint(args[3], 10, 64)
 			if err != nil {
 				return fmt.Errorf("unable to parse doc number: %v", err)
 			}
@@ -82,7 +82,7 @@ func explorePostingsList(field, term string) error {
 	return nil
 }
 
-func explorePosting(field, term string, docNum int) error {
+func explorePosting(field, term string, docNum uint64) error {
 	dict, err := seg.Dictionary(field)
 	if err != nil {
 		return fmt.Errorf("error accessing dictionary for field '%s': %w", field, err)
