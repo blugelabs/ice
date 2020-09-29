@@ -65,8 +65,24 @@ func TestDictionary(t *testing.T) {
 
 	// test basic full iterator
 	expected := []string{"apple", "ball", "bat", "cat", "dog", "egg", "fish"}
-	var got []string
 	itr := dict.Iterator(nil, nil, nil)
+	checkIterator(t, itr, expected)
+
+	// test prefixes iterator
+	expected = []string{"ball", "bat"}
+	kBeg := []byte("b")
+	kEnd := incrementBytes(kBeg)
+	itr = dict.Iterator(nil, kBeg, kEnd)
+	checkIterator(t, itr, expected)
+
+	// test range iterator
+	expected = []string{"cat", "dog"}
+	itr = dict.Iterator(nil, []byte("cat"), []byte("egg"))
+	checkIterator(t, itr, expected)
+}
+
+func checkIterator(t *testing.T, itr segment.DictionaryIterator, expected []string) {
+	var got []string
 	next, err := itr.Next()
 	for next != nil && err == nil {
 		got = append(got, next.Term())
@@ -75,43 +91,6 @@ func TestDictionary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dict itr error: %v", err)
 	}
-
-	if !reflect.DeepEqual(expected, got) {
-		t.Errorf("expected: %v, got: %v", expected, got)
-	}
-
-	// test prefixes iterator
-	expected = []string{"ball", "bat"}
-	got = got[:0]
-	kBeg := []byte("b")
-	kEnd := incrementBytes(kBeg)
-	itr = dict.Iterator(nil, kBeg, kEnd)
-	next, err = itr.Next()
-	for next != nil && err == nil {
-		got = append(got, next.Term())
-		next, err = itr.Next()
-	}
-	if err != nil {
-		t.Fatalf("dict itr error: %v", err)
-	}
-
-	if !reflect.DeepEqual(expected, got) {
-		t.Errorf("expected: %v, got: %v", expected, got)
-	}
-
-	// test range iterator
-	expected = []string{"cat", "dog"}
-	got = got[:0]
-	itr = dict.Iterator(nil, []byte("cat"), []byte("egg"))
-	next, err = itr.Next()
-	for next != nil && err == nil {
-		got = append(got, next.Term())
-		next, err = itr.Next()
-	}
-	if err != nil {
-		t.Fatalf("dict itr error: %v", err)
-	}
-
 	if !reflect.DeepEqual(expected, got) {
 		t.Errorf("expected: %v, got: %v", expected, got)
 	}

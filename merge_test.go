@@ -137,17 +137,8 @@ func testMergeWithEmptySegments(t *testing.T, before bool, numEmptySegments int)
 
 	for i := 0; i < numEmptySegments; i++ {
 		fname := fmt.Sprintf("segment-empty-%d.ice", i)
-
-		var emptySegment segment.Segment
-		emptySegment, _, err = newWithChunkMode([]segment.Document{}, encodeNorm, 1024)
-		if err != nil {
-			t.Fatal(err)
-		}
 		segPath := filepath.Join(path, fname)
-		err = persistToFile(emptySegment.(*Segment), segPath)
-		if err != nil {
-			t.Fatal(err)
-		}
+		createAndPersistEmptySegment(t, segPath)
 
 		var emptyFileSegment *Segment
 		var emptyClose closeFunc
@@ -197,6 +188,17 @@ func testMergeWithEmptySegments(t *testing.T, before bool, numEmptySegments int)
 	}
 
 	testMergeWithSelf(t, segCur, 2)
+}
+
+func createAndPersistEmptySegment(t *testing.T, path string) {
+	emptySegment, _, err := newWithChunkMode([]segment.Document{}, encodeNorm, 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = persistToFile(emptySegment.(*Segment), path)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func testMergeWithSelf(t *testing.T, segCur *Segment, expectedCount uint64) {
