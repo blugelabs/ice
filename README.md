@@ -1,5 +1,7 @@
 # ice
 
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/blugelabs/ice)](https://pkg.go.dev/github.com/blugelabs/ice)
+
 The file is written in the reverse order that we typically access data.  This helps us write in one pass since later sections of the file require file offsets of things we've already written.
 
 Current usage:
