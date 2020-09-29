@@ -367,7 +367,6 @@ func TestSegmentVisitableDocValueFieldsList(t *testing.T) {
 		t.Fatalf("error closing segment: %v", err)
 	}
 
-
 	segPath2 := filepath.Join(path, "segment2.ice")
 	testSeg, _, _ = buildTestSegmentWithDefaultFieldMapping(1)
 	err = persistToFile(testSeg, segPath2)
@@ -509,11 +508,9 @@ func TestMergedSegmentDocsWithNonOverlappingFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	if nBytes == 0 {
 		t.Fatalf("expected a non zero total_compaction_written_bytes")
 	}
-
 
 	segmentM, closeM, err := openFromFile(segPath3)
 	if err != nil {
@@ -530,6 +527,10 @@ func TestMergedSegmentDocsWithNonOverlappingFields(t *testing.T) {
 		t.Errorf("expected 2, got %d", segmentM.Count())
 	}
 
+	checkExpectedFields(t, segmentM.Fields())
+}
+
+func checkExpectedFields(t *testing.T, fields []string) {
 	expectFields := map[string]struct{}{
 		"_id":           {},
 		"_all":          {},
@@ -539,8 +540,6 @@ func TestMergedSegmentDocsWithNonOverlappingFields(t *testing.T) {
 		"manages.count": {},
 		"reportsTo.id":  {},
 	}
-
-	fields := segmentM.Fields()
 	if len(fields) != len(expectFields) {
 		t.Errorf("expected %d fields, only got %d", len(expectFields), len(fields))
 	}
