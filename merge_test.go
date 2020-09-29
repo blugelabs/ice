@@ -16,7 +16,7 @@ package ice
 
 import (
 	"fmt"
-	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -27,23 +27,24 @@ import (
 )
 
 func TestMerge(t *testing.T) {
-	_ = os.RemoveAll("/tmp/segment.ice")
-	_ = os.RemoveAll("/tmp/segment2.ice")
-	_ = os.RemoveAll("/tmp/segment3.ice")
+	path, cleanup := setupTestDir(t)
+	defer cleanup()
 
 	testSeg, _ := buildTestSegmentMulti()
-	err := persistToFile(testSeg, "/tmp/segment.ice")
+	segPath := filepath.Join(path, "segment.ice")
+	err := persistToFile(testSeg, segPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	testSeg2, _, _ := buildTestSegmentMulti2()
-	err = persistToFile(testSeg2, "/tmp/segment2.ice")
+	segPath2 := filepath.Join(path, "segment2.ice")
+	err = persistToFile(testSeg2, segPath2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	seg, closeF, err := openFromFile("/tmp/segment.ice")
+	seg, closeF, err := openFromFile(segPath)
 	if err != nil {
 		t.Fatalf("error opening segment: %v", err)
 	}
@@ -54,7 +55,7 @@ func TestMerge(t *testing.T) {
 		}
 	}()
 
-	segment2, close2, err := openFromFile("/tmp/segment2.ice")
+	segment2, close2, err := openFromFile(segPath2)
 	if err != nil {
 		t.Fatalf("error opening segment: %v", err)
 	}
@@ -69,12 +70,13 @@ func TestMerge(t *testing.T) {
 	segsToMerge[0] = seg
 	segsToMerge[1] = segment2
 
-	_, err = mergeSegments(segsToMerge, []*roaring.Bitmap{nil, nil}, "/tmp/segment3.ice")
+	segPath3 := filepath.Join(path, "segment3.ice")
+	_, err = mergeSegments(segsToMerge, []*roaring.Bitmap{nil, nil}, segPath3)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	seg3, close3, err := openFromFile("/tmp/segment3.ice")
+	seg3, close3, err := openFromFile(segPath3)
 	if err != nil {
 		t.Fatalf("error opening merged segment: %v", err)
 	}
@@ -112,9 +114,11 @@ func TestMergeWithEmptySegmentsFirst(t *testing.T) {
 }
 
 func testMergeWithEmptySegments(t *testing.T, before bool, numEmptySegments int) {
-	_ = os.RemoveAll("/tmp/segment.ice")
+	path, cleanup := setupTestDir(t)
+	defer cleanup()
 
-	seg, closeF, err := createDiskSegment(buildTestSegmentMulti, "/tmp/segment.ice")
+	segPath := filepath.Join(path, "segment.ice")
+	seg, closeF, err := createDiskSegment(buildTestSegmentMulti, segPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,21 +138,20 @@ func testMergeWithEmptySegments(t *testing.T, before bool, numEmptySegments int)
 	for i := 0; i < numEmptySegments; i++ {
 		fname := fmt.Sprintf("segment-empty-%d.ice", i)
 
-		_ = os.RemoveAll("/tmp/" + fname)
-
 		var emptySegment segment.Segment
 		emptySegment, _, err = newWithChunkMode([]segment.Document{}, encodeNorm, 1024)
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = persistToFile(emptySegment.(*Segment), "/tmp/"+fname)
+		segPath := filepath.Join(path, fname)
+		err = persistToFile(emptySegment.(*Segment), segPath)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		var emptyFileSegment *Segment
 		var emptyClose closeFunc
-		emptyFileSegment, emptyClose, err = openFromFile("/tmp/" + fname)
+		emptyFileSegment, emptyClose, err = openFromFile(segPath)
 		if err != nil {
 			t.Fatalf("error opening segment: %v", err)
 		}
@@ -166,16 +169,16 @@ func testMergeWithEmptySegments(t *testing.T, before bool, numEmptySegments int)
 		segsToMerge = append(segsToMerge, seg)
 	}
 
-	_ = os.RemoveAll("/tmp/segment3.ice")
+	segPath3 := filepath.Join(path, "segment3.ice")
 
 	drops := make([]*roaring.Bitmap, len(segsToMerge))
 
-	_, err = mergeSegments(segsToMerge, drops, "/tmp/segment3.ice")
+	_, err = mergeSegments(segsToMerge, drops, segPath3)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	segCur, closeCur, err := openFromFile("/tmp/segment3.ice")
+	segCur, closeCur, err := openFromFile(segPath3)
 	if err != nil {
 		t.Fatalf("error opening merged segment: %v", err)
 	}
@@ -197,23 +200,26 @@ func testMergeWithEmptySegments(t *testing.T, before bool, numEmptySegments int)
 }
 
 func testMergeWithSelf(t *testing.T, segCur *Segment, expectedCount uint64) {
+	path, cleanup := setupTestDir(t)
+	defer cleanup()
+
 	// trying merging the segment with itself for a few rounds
 	var diffs []string
 
 	for i := 0; i < 10; i++ {
 		fname := fmt.Sprintf("segment-self-%d.ice", i)
 
-		_ = os.RemoveAll("/tmp/" + fname)
+		segPath := filepath.Join(path, fname)
 
 		segsToMerge := make([]segment.Segment, 1)
 		segsToMerge[0] = segCur
 
-		_, err := mergeSegments(segsToMerge, []*roaring.Bitmap{nil, nil}, "/tmp/"+fname)
+		_, err := mergeSegments(segsToMerge, []*roaring.Bitmap{nil, nil}, segPath)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		segNew, closeNew, err := openFromFile("/tmp/" + fname)
+		segNew, closeNew, err := openFromFile(segPath)
 		if err != nil {
 			t.Fatalf("error opening merged segment: %v", err)
 		}
@@ -490,15 +496,16 @@ func TestMergeAndDropAllFromOneSegment(t *testing.T) {
 }
 
 func testMergeAndDrop(t *testing.T, docsToDrop []*roaring.Bitmap) {
-	_ = os.RemoveAll("/tmp/segment.ice")
-	_ = os.RemoveAll("/tmp/segment2.ice")
+	path, cleanup := setupTestDir(t)
+	defer cleanup()
 
 	testSeg, _ := buildTestSegmentMulti()
-	err := persistToFile(testSeg, "/tmp/segment.ice")
+	segPath := filepath.Join(path, "segment.ice")
+	err := persistToFile(testSeg, segPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	seg, closeF, err := openFromFile("/tmp/segment.ice")
+	seg, closeF, err := openFromFile(segPath)
 	if err != nil {
 		t.Fatalf("error opening segment: %v", err)
 	}
@@ -510,12 +517,13 @@ func testMergeAndDrop(t *testing.T, docsToDrop []*roaring.Bitmap) {
 	}()
 
 	testSeg2, _, _ := buildTestSegmentMulti2()
-	err = persistToFile(testSeg2, "/tmp/segment2.ice")
+	segPath2 := filepath.Join(path, "segment2.ice")
+	err = persistToFile(testSeg2, segPath2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	segment2, close2, err := openFromFile("/tmp/segment2.ice")
+	segment2, close2, err := openFromFile(segPath2)
 	if err != nil {
 		t.Fatalf("error opening segment: %v", err)
 	}
@@ -588,20 +596,23 @@ func TestMergeWithUpdatesOnOneDoc(t *testing.T) {
 }
 
 func testMergeWithUpdates(t *testing.T, segmentDocIds [][]string, docsToDrop []*roaring.Bitmap, expectedNumDocs uint64) {
+	path, cleanup := setupTestDir(t)
+	defer cleanup()
+
 	var segsToMerge []segment.Segment
 
 	// convert segmentDocIds to segsToMerge
 	for i, docIds := range segmentDocIds {
 		fname := fmt.Sprintf("segment%d.ice", i)
 
-		_ = os.RemoveAll("/tmp/" + fname)
+		segPath := filepath.Join(path, fname)
 
 		testSeg, _, _ := buildTestSegmentMultiHelper(docIds)
-		err := persistToFile(testSeg, "/tmp/"+fname)
+		err := persistToFile(testSeg, segPath)
 		if err != nil {
 			t.Fatal(err)
 		}
-		seg, closeF, err := openFromFile("/tmp/" + fname)
+		seg, closeF, err := openFromFile(segPath)
 		if err != nil {
 			t.Fatalf("error opening segment: %v", err)
 		}
@@ -619,14 +630,16 @@ func testMergeWithUpdates(t *testing.T, segmentDocIds [][]string, docsToDrop []*
 }
 
 func testMergeAndDropSegments(t *testing.T, segsToMerge []segment.Segment, docsToDrop []*roaring.Bitmap, expectedNumDocs uint64) {
-	_ = os.RemoveAll("/tmp/segment-merged.ice")
+	path, cleanup := setupTestDir(t)
+	defer cleanup()
 
-	_, err := mergeSegments(segsToMerge, docsToDrop, "/tmp/segment-merged.ice")
+	segPath := filepath.Join(path, "segment-merged.ice")
+	_, err := mergeSegments(segsToMerge, docsToDrop, segPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	segm, closem, err := openFromFile("/tmp/segment-merged.ice")
+	segm, closem, err := openFromFile(segPath)
 	if err != nil {
 		t.Fatalf("error opening merged segment: %v", err)
 	}
@@ -677,23 +690,24 @@ func buildTestSegmentMultiHelper(docIds []string) (*Segment, uint64, error) {
 }
 
 func TestMergeBytesWritten(t *testing.T) {
-	_ = os.RemoveAll("/tmp/segment.ice")
-	_ = os.RemoveAll("/tmp/segment2.ice")
-	_ = os.RemoveAll("/tmp/segment3.ice")
+	path, cleanup := setupTestDir(t)
+	defer cleanup()
 
 	testSeg, _ := buildTestSegmentMulti()
-	err := persistToFile(testSeg, "/tmp/segment.ice")
+	segPath := filepath.Join(path, "segment.ice")
+	err := persistToFile(testSeg, segPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	testSeg2, _, _ := buildTestSegmentMulti2()
-	err = persistToFile(testSeg2, "/tmp/segment2.ice")
+	segPath2 := filepath.Join(path, "segment2.ice")
+	err = persistToFile(testSeg2, segPath2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	seg, closeF, err := openFromFile("/tmp/segment.ice")
+	seg, closeF, err := openFromFile(segPath)
 	if err != nil {
 		t.Fatalf("error opening segment: %v", err)
 	}
@@ -704,7 +718,7 @@ func TestMergeBytesWritten(t *testing.T) {
 		}
 	}()
 
-	segment2, close2, err := openFromFile("/tmp/segment2.ice")
+	segment2, close2, err := openFromFile(segPath2)
 	if err != nil {
 		t.Fatalf("error opening segment: %v", err)
 	}
@@ -719,7 +733,8 @@ func TestMergeBytesWritten(t *testing.T) {
 	segsToMerge[0] = seg
 	segsToMerge[1] = segment2
 
-	nBytes, err := mergeSegments(segsToMerge, []*roaring.Bitmap{nil, nil}, "/tmp/segment3.ice")
+	segPath3 := filepath.Join(path, "segment3.ice")
+	nBytes, err := mergeSegments(segsToMerge, []*roaring.Bitmap{nil, nil}, segPath3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -728,7 +743,7 @@ func TestMergeBytesWritten(t *testing.T) {
 		t.Fatalf("expected a non zero total_compaction_written_bytes")
 	}
 
-	seg3, close3, err := openFromFile("/tmp/segment3.ice")
+	seg3, close3, err := openFromFile(segPath3)
 	if err != nil {
 		t.Fatalf("error opening merged segment: %v", err)
 	}

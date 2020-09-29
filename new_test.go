@@ -15,20 +15,22 @@
 package ice
 
 import (
-	"os"
+	"path/filepath"
 	"testing"
 
 	segment "github.com/blugelabs/bluge_segment_api"
 )
 
 func TestBuild(t *testing.T) {
-	_ = os.RemoveAll("/tmp/segment.ice")
+	path, cleanup := setupTestDir(t)
+	defer cleanup()
 
 	sb, err := buildTestSegment()
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = persistToFile(sb, "/tmp/segment.ice")
+	segPath := filepath.Join(path, "segment.ice")
+	err = persistToFile(sb, segPath)
 	if err != nil {
 		t.Fatal(err)
 	}
