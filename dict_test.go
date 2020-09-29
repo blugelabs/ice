@@ -15,7 +15,7 @@
 package ice
 
 import (
-	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -37,15 +37,17 @@ func buildTestSegmentForDict() (*Segment, error) {
 }
 
 func TestDictionary(t *testing.T) {
-	_ = os.RemoveAll("/tmp/segment.ice")
+	path, cleanup := setupTestDir(t)
+	defer cleanup()
 
 	testSeg, _ := buildTestSegmentForDict()
-	err := persistToFile(testSeg, "/tmp/segment.ice")
+	segPath := filepath.Join(path, "segment.ice")
+	err := persistToFile(testSeg, segPath)
 	if err != nil {
 		t.Fatalf("error persisting segment: %v", err)
 	}
 
-	seg, closeFunc, err := openFromFile("/tmp/segment.ice")
+	seg, closeFunc, err := openFromFile(segPath)
 	if err != nil {
 		t.Fatalf("error opening segment: %v", err)
 	}
@@ -138,15 +140,17 @@ func TestDictionaryError(t *testing.T) {
 		builders[i] = lb
 	}
 
-	_ = os.RemoveAll("/tmp/segment.ice")
+	path, cleanup := setupTestDir(t)
+	defer cleanup()
 
 	testSeg, _ := buildTestSegmentForDict()
-	err := persistToFile(testSeg, "/tmp/segment.ice")
+	segPath := filepath.Join(path, "segment.ice")
+	err := persistToFile(testSeg, segPath)
 	if err != nil {
 		t.Fatalf("error persisting segment: %v", err)
 	}
 
-	seg, closeFunc, err := openFromFile("/tmp/segment.ice")
+	seg, closeFunc, err := openFromFile(segPath)
 	if err != nil {
 		t.Fatalf("error opening segment: %v", err)
 	}
@@ -212,15 +216,17 @@ func TestDictionaryError(t *testing.T) {
 }
 
 func TestDictionaryBug1156(t *testing.T) {
-	_ = os.RemoveAll("/tmp/segment.ice")
+	path, cleanup := setupTestDir(t)
+	defer cleanup()
 
 	testSeg, _ := buildTestSegmentForDict()
-	err := persistToFile(testSeg, "/tmp/segment.ice")
+	segPath := filepath.Join(path, "segment.ice")
+	err := persistToFile(testSeg, segPath)
 	if err != nil {
 		t.Fatalf("error persisting segment: %v", err)
 	}
 
-	seg, closeFunc, err := openFromFile("/tmp/segment.ice")
+	seg, closeFunc, err := openFromFile(segPath)
 	if err != nil {
 		t.Fatalf("error opening segment: %v", err)
 	}

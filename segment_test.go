@@ -15,7 +15,6 @@
 package ice
 
 import (
-	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -191,9 +190,11 @@ func (i testIdentifier) Term() []byte {
 }
 
 func TestOpenMulti(t *testing.T) {
-	_ = os.RemoveAll("/tmp/segment.ice")
+	path, cleanup := setupTestDir(t)
+	defer cleanup()
 
-	seg, closeF, err := createDiskSegment(buildTestSegmentMulti, "/tmp/segment.ice")
+	segPath := filepath.Join(path, "segment.ice")
+	seg, closeF, err := createDiskSegment(buildTestSegmentMulti, segPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,11 +270,13 @@ func TestOpenMulti(t *testing.T) {
 }
 
 func TestOpenMultiWithTwoChunks(t *testing.T) {
-	_ = os.RemoveAll("/tmp/segment.ice")
+	path, cleanup := setupTestDir(t)
+	defer cleanup()
 
+	segPath := filepath.Join(path, "segment.ice")
 	seg, closeF, err := createDiskSegment(func() (*Segment, error) {
 		return buildTestSegmentMultiWithChunkFactor(1)
-	}, "/tmp/segment.ice")
+	}, segPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -344,15 +347,17 @@ func TestOpenMultiWithTwoChunks(t *testing.T) {
 }
 
 func TestSegmentVisitableDocValueFieldsList(t *testing.T) {
-	_ = os.RemoveAll("/tmp/segment.ice")
+	path, cleanup := setupTestDir(t)
+	defer cleanup()
 
+	segPath := filepath.Join(path, "segment.ice")
 	testSeg, _ := buildTestSegmentMultiWithChunkFactor(1)
-	err := persistToFile(testSeg, "/tmp/segment.ice")
+	err := persistToFile(testSeg, segPath)
 	if err != nil {
 		t.Fatalf("error persisting segment: %v", err)
 	}
 
-	_, closeF, err := openFromFile("/tmp/segment.ice")
+	_, closeF, err := openFromFile(segPath)
 	if err != nil {
 		t.Fatalf("error opening segment: %v", err)
 	}
@@ -361,15 +366,16 @@ func TestSegmentVisitableDocValueFieldsList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error closing segment: %v", err)
 	}
-	_ = os.RemoveAll("/tmp/segment.ice")
 
+
+	segPath2 := filepath.Join(path, "segment2.ice")
 	testSeg, _, _ = buildTestSegmentWithDefaultFieldMapping(1)
-	err = persistToFile(testSeg, "/tmp/segment.ice")
+	err = persistToFile(testSeg, segPath2)
 	if err != nil {
 		t.Fatalf("error persisting segment: %v", err)
 	}
 
-	seg, close2, err := openFromFile("/tmp/segment.ice")
+	seg, close2, err := openFromFile(segPath2)
 	if err != nil {
 		t.Fatalf("error opening segment: %v", err)
 	}
@@ -405,18 +411,20 @@ func TestSegmentVisitableDocValueFieldsList(t *testing.T) {
 }
 
 func TestSegmentDocsWithNonOverlappingFields(t *testing.T) {
-	_ = os.RemoveAll("/tmp/segment.ice")
+	path, cleanup := setupTestDir(t)
+	defer cleanup()
 
 	testSeg, err := buildTestSegmentMultiWithDifferentFields(true, true)
 	if err != nil {
 		t.Fatalf("error building segment: %v", err)
 	}
-	err = persistToFile(testSeg, "/tmp/segment.ice")
+	segPath := filepath.Join(path, "segment.ice")
+	err = persistToFile(testSeg, segPath)
 	if err != nil {
 		t.Fatalf("error persisting segment: %v", err)
 	}
 
-	seg, closeF, err := openFromFile("/tmp/segment.ice")
+	seg, closeF, err := openFromFile(segPath)
 	if err != nil {
 		t.Fatalf("error opening segment: %v", err)
 	}
@@ -453,23 +461,24 @@ func TestSegmentDocsWithNonOverlappingFields(t *testing.T) {
 }
 
 func TestMergedSegmentDocsWithNonOverlappingFields(t *testing.T) {
-	_ = os.RemoveAll("/tmp/segment1.ice")
-	_ = os.RemoveAll("/tmp/segment2.ice")
-	_ = os.RemoveAll("/tmp/segment3.ice")
+	path, cleanup := setupTestDir(t)
+	defer cleanup()
 
 	testSeg1, _ := buildTestSegmentMultiWithDifferentFields(true, false)
-	err := persistToFile(testSeg1, "/tmp/segment1.ice")
+	segPath := filepath.Join(path, "segment1.ice")
+	err := persistToFile(testSeg1, segPath)
 	if err != nil {
 		t.Fatalf("error persisting segment: %v", err)
 	}
 
 	testSeg2, _ := buildTestSegmentMultiWithDifferentFields(false, true)
-	err = persistToFile(testSeg2, "/tmp/segment2.ice")
+	segPath2 := filepath.Join(path, "segment2.ice")
+	err = persistToFile(testSeg2, segPath2)
 	if err != nil {
 		t.Fatalf("error persisting segment: %v", err)
 	}
 
-	segment1, close1, err := openFromFile("/tmp/segment1.ice")
+	segment1, close1, err := openFromFile(segPath)
 	if err != nil {
 		t.Fatalf("error opening segment: %v", err)
 	}
@@ -480,7 +489,7 @@ func TestMergedSegmentDocsWithNonOverlappingFields(t *testing.T) {
 		}
 	}()
 
-	segment2, close2, err := openFromFile("/tmp/segment2.ice")
+	segment2, close2, err := openFromFile(segPath2)
 	if err != nil {
 		t.Fatalf("error opening segment: %v", err)
 	}
@@ -495,7 +504,8 @@ func TestMergedSegmentDocsWithNonOverlappingFields(t *testing.T) {
 	segsToMerge[0] = segment1
 	segsToMerge[1] = segment2
 
-	nBytes, err := mergeSegments(segsToMerge, []*roaring.Bitmap{nil, nil}, "/tmp/segment3.ice")
+	segPath3 := filepath.Join(path, "segment3.ice")
+	nBytes, err := mergeSegments(segsToMerge, []*roaring.Bitmap{nil, nil}, segPath3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -504,7 +514,8 @@ func TestMergedSegmentDocsWithNonOverlappingFields(t *testing.T) {
 		t.Fatalf("expected a non zero total_compaction_written_bytes")
 	}
 
-	segmentM, closeM, err := openFromFile("/tmp/segment3.ice")
+
+	segmentM, closeM, err := openFromFile(segPath3)
 	if err != nil {
 		t.Fatalf("error opening merged segment: %v", err)
 	}
