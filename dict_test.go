@@ -21,7 +21,7 @@ import (
 
 	segment "github.com/blugelabs/bluge_segment_api"
 
-	"github.com/couchbase/vellum/levenshtein"
+	"github.com/blevesearch/vellum/levenshtein"
 )
 
 func buildTestSegmentForDict() (*Segment, error) {
