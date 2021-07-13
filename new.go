@@ -22,8 +22,8 @@ import (
 	"sync"
 
 	"github.com/RoaringBitmap/roaring"
+	"github.com/blevesearch/vellum"
 	segment "github.com/blugelabs/bluge_segment_api"
-	"github.com/couchbase/vellum"
 	"github.com/golang/snappy"
 )
 

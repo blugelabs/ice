@@ -18,8 +18,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"github.com/blevesearch/vellum"
 	segment "github.com/blugelabs/bluge_segment_api"
-	"github.com/couchbase/vellum"
 )
 
 // Open returns an impl of a segment
