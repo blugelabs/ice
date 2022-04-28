@@ -27,7 +27,6 @@ import (
 	"github.com/RoaringBitmap/roaring"
 	"github.com/blevesearch/vellum"
 	segment "github.com/blugelabs/bluge_segment_api"
-	"github.com/golang/snappy"
 )
 
 const docDropped = math.MaxInt64 // sentinel docNum to represent a deleted doc
@@ -756,7 +755,7 @@ func mergeStoredAndRemapSegment(seg *Segment, dropsI *roaring.Bitmap, segNewDocN
 
 		metaBytes := metaBuf.Bytes()
 
-		// compressed = snappy.Encode(compressed[:cap(compressed)], data)
+		// compressed = ZSTDCompress(compressed[:cap(compressed)], data, 3)
 
 		// record where we're about to start writing
 		docNumOffsets[newDocNum] = uint64(trunkWriter.BufferSize())
@@ -811,7 +810,7 @@ func (s *Segment) copyStoredDocs(newDocNum uint64, newDocNumOffsets []uint64, my
 		if err != nil {
 			return err
 		}
-		uncompressed, err = snappy.Decode(uncompressed[:cap(uncompressed)], compressed)
+		uncompressed, err = ZSTDDecompress(uncompressed[:cap(uncompressed)], compressed)
 		if err != nil {
 			log.Panic(err)
 			return err

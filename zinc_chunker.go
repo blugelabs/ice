@@ -3,8 +3,6 @@ package ice
 import (
 	"bytes"
 	"io"
-
-	"github.com/golang/snappy"
 )
 
 const zincTrunkerSize = 128
@@ -40,7 +38,11 @@ func (t *zincTrunker) NewLine() error {
 
 func (t *zincTrunker) Flush() error {
 	if t.buf.Len() > 0 {
-		t.compressed = snappy.Encode(t.compressed[:cap(t.compressed)], t.buf.Bytes())
+		var err error
+		t.compressed, err = ZSTDCompress(t.compressed[:cap(t.compressed)], t.buf.Bytes(), 3)
+		if err != nil {
+			return err
+		}
 		n, err := t.w.Write(t.compressed)
 		if err != nil {
 			return err

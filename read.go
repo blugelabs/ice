@@ -16,8 +16,6 @@ package ice
 
 import (
 	"encoding/binary"
-
-	"github.com/golang/snappy"
 )
 
 func (s *Segment) getDocStoredMetaAndCompressed(docNum uint64) (meta, data []byte, err error) {
@@ -34,7 +32,7 @@ func (s *Segment) getDocStoredMetaAndCompressed(docNum uint64) (meta, data []byt
 	if err != nil {
 		return nil, nil, err
 	}
-	s.storedFieldTrunkUncompressed, err = snappy.Decode(s.storedFieldTrunkUncompressed[:cap(s.storedFieldTrunkUncompressed)], compressed)
+	s.storedFieldTrunkUncompressed, err = ZSTDDecompress(s.storedFieldTrunkUncompressed[:cap(s.storedFieldTrunkUncompressed)], compressed)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -63,7 +61,7 @@ func (s *Segment) getDocStoredOffsets(docNum uint64) (
 	if err != nil {
 		return 0, 0, 0, 0, 0, err
 	}
-	s.storedFieldTrunkUncompressed, err = snappy.Decode(s.storedFieldTrunkUncompressed[:cap(s.storedFieldTrunkUncompressed)], compressed)
+	s.storedFieldTrunkUncompressed, err = ZSTDDecompress(s.storedFieldTrunkUncompressed[:cap(s.storedFieldTrunkUncompressed)], compressed)
 	if err != nil {
 		return 0, 0, 0, 0, 0, err
 	}

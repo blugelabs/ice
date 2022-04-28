@@ -201,7 +201,7 @@ func (s *Segment) visitDocument(vdc *visitDocumentCtx, num uint64,
 
 		vdc.reader.Reset(meta)
 
-		// uncompressed, err := snappy.Decode(vdc.buf[:cap(vdc.buf)], compressed)
+		// uncompressed, err := ZSTDDecompress(vdc.buf[:cap(vdc.buf)], compressed)
 		// if err != nil {
 		// 	return err
 		// }
