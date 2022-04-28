@@ -55,6 +55,11 @@ func load(data *segment.Data) (*Segment, error) {
 		return nil, err
 	}
 
+	err = rv.loadStoredFieldTrunk()
+	if err != nil {
+		return nil, err
+	}
+
 	err = rv.loadDvReaders()
 	if err != nil {
 		return nil, err
@@ -126,5 +131,28 @@ func (s *Segment) loadFields() error {
 
 		fieldID++
 	}
+	return nil
+}
+
+func (s *Segment) loadStoredFieldTrunk() error {
+	// read trunk num
+	trunkOffsetPos := int(s.footer.storedIndexOffset - 4) // uint32
+	trunkData, err := s.data.Read(trunkOffsetPos, trunkOffsetPos+4)
+	if err != nil {
+		return err
+	}
+	trunkNum := binary.BigEndian.Uint32(trunkData)
+	// read trunk offsets
+	trunkOffsetPos -= 8 * int(trunkNum)
+	trunkData, err = s.data.Read(trunkOffsetPos, trunkOffsetPos+int(8*trunkNum))
+	if err != nil {
+		return err
+	}
+	s.storedFieldTrunkOffset = make(map[int]uint64, trunkNum)
+	for i := 0; i < int(trunkNum); i++ {
+		offset := binary.BigEndian.Uint64(trunkData[i*8 : i*8+8])
+		s.storedFieldTrunkOffset[i] = offset
+	}
+
 	return nil
 }

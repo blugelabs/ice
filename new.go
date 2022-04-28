@@ -24,7 +24,6 @@ import (
 	"github.com/RoaringBitmap/roaring"
 	"github.com/blevesearch/vellum"
 	segment "github.com/blugelabs/bluge_segment_api"
-	"github.com/golang/snappy"
 )
 
 var newSegmentBufferNumResultsBump int = 100
@@ -569,6 +568,9 @@ func (s *interim) writeStoredFields() (
 	// keyed by fieldID, for the current doc in the loop
 	docStoredFields := map[uint16]interimStoredField{}
 
+	// zinc trunk
+	trunkWriter := NewZincTrunker(s.w)
+
 	for docNum, result := range s.results {
 		for fieldID := range docStoredFields { // reset for next doc
 			delete(docStoredFields, fieldID)
@@ -608,26 +610,49 @@ func (s *interim) writeStoredFields() (
 
 		metaBytes := s.metaBuf.Bytes()
 
-		compressed = snappy.Encode(compressed[:cap(compressed)], data)
+		// compressed = snappy.Encode(compressed[:cap(compressed)], data)
+		// docStoredOffsets[docNum] = uint64(s.w.Count())
+		docStoredOffsets[docNum] = uint64(trunkWriter.BufferSize())
 
-		docStoredOffsets[docNum] = uint64(s.w.Count())
-
-		err = writeUvarints(s.w,
+		err = writeUvarints(trunkWriter,
 			uint64(len(metaBytes)),
-			uint64(len(compressed)))
+			uint64(len(data)))
 		if err != nil {
 			return 0, err
 		}
 
-		_, err = s.w.Write(metaBytes)
+		// _, err = s.w.Write(metaBytes)
+		_, err = trunkWriter.Write(metaBytes)
 		if err != nil {
 			return 0, err
 		}
 
-		_, err = s.w.Write(compressed)
+		// _, err = s.w.Write(compressed)
+		_, err = trunkWriter.Write(data)
 		if err != nil {
 			return 0, err
 		}
+
+		// trunk line
+		if err := trunkWriter.NewLine(); err != nil {
+			return 0, err
+		}
+
+	}
+
+	// zinc trunk
+	trunkWriter.Flush()
+	// write chunk offsets
+	for _, offset := range trunkWriter.Offsets() {
+		err = binary.Write(s.w, binary.BigEndian, offset)
+		if err != nil {
+			return 0, err
+		}
+	}
+	// write chunk num
+	err = binary.Write(s.w, binary.BigEndian, uint32(trunkWriter.Len()))
+	if err != nil {
+		return 0, err
 	}
 
 	storedIndexOffset = uint64(s.w.Count())

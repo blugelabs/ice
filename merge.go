@@ -20,6 +20,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"sort"
 
@@ -639,6 +640,9 @@ func mergeStoredAndRemap(segments []*Segment, drops []*roaring.Bitmap,
 	vdc := visitDocumentCtxPool.Get().(*visitDocumentCtx)
 	defer visitDocumentCtxPool.Put(vdc)
 
+	// zinc trunk
+	trunkWriter := NewZincTrunker(w)
+
 	// for each segment
 	for segI, seg := range segments {
 		// check for the closure in meantime
@@ -654,7 +658,7 @@ func mergeStoredAndRemap(segments []*Segment, drops []*roaring.Bitmap,
 		// segments and there are no deletions, via byte-copying
 		// of stored docs bytes directly to the writer
 		if fieldsSame && (dropsI == nil || dropsI.GetCardinality() == 0) {
-			err := seg.copyStoredDocs(newDocNum, docNumOffsets, w)
+			err := seg.copyStoredDocs(newDocNum, docNumOffsets, trunkWriter)
 			if err != nil {
 				return 0, nil, err
 			}
@@ -670,12 +674,27 @@ func mergeStoredAndRemap(segments []*Segment, drops []*roaring.Bitmap,
 
 		var err2 error
 		newDocNum, err2 = mergeStoredAndRemapSegment(seg, dropsI, segNewDocNums, newDocNum, &metaBuf, data,
-			fieldsInv, vals, vdc, fieldsMap, metaEncode, compressed, docNumOffsets, w)
+			fieldsInv, vals, vdc, fieldsMap, metaEncode, compressed, docNumOffsets, trunkWriter)
 		if err2 != nil {
 			return 0, nil, err2
 		}
 
 		newDocNums = append(newDocNums, segNewDocNums)
+	}
+
+	// zinc trunk
+	trunkWriter.Flush()
+	// write chunk offsets
+	for _, offset := range trunkWriter.Offsets() {
+		err = binary.Write(w, binary.BigEndian, offset)
+		if err != nil {
+			return 0, nil, err
+		}
+	}
+	// write chunk num
+	err = binary.Write(w, binary.BigEndian, uint32(trunkWriter.Len()))
+	if err != nil {
+		return 0, nil, err
 	}
 
 	// return value is the start of the stored index
@@ -695,7 +714,7 @@ func mergeStoredAndRemap(segments []*Segment, drops []*roaring.Bitmap,
 func mergeStoredAndRemapSegment(seg *Segment, dropsI *roaring.Bitmap, segNewDocNums []uint64, newDocNum uint64,
 	metaBuf *bytes.Buffer, data []byte, fieldsInv []string, vals [][][]byte, vdc *visitDocumentCtx,
 	fieldsMap map[string]uint16, metaEncode func(val uint64) (int, error), compressed []byte, docNumOffsets []uint64,
-	w *countHashWriter) (uint64, error) {
+	trunkWriter *zincTrunker) (uint64, error) {
 	// for each doc num
 	for docNum := uint64(0); docNum < seg.footer.numDocs; docNum++ {
 		// TODO: roaring's API limits docNums to 32-bits?
@@ -737,26 +756,33 @@ func mergeStoredAndRemapSegment(seg *Segment, dropsI *roaring.Bitmap, segNewDocN
 
 		metaBytes := metaBuf.Bytes()
 
-		compressed = snappy.Encode(compressed[:cap(compressed)], data)
+		// compressed = snappy.Encode(compressed[:cap(compressed)], data)
 
 		// record where we're about to start writing
-		docNumOffsets[newDocNum] = uint64(w.Count())
+		docNumOffsets[newDocNum] = uint64(trunkWriter.BufferSize())
 
 		// write out the meta len and compressed data len
-		err = writeUvarints(w,
+		err = writeUvarints(trunkWriter,
 			uint64(len(metaBytes)),
 			uint64(len(compressed)))
 		if err != nil {
 			return 0, err
 		}
 		// now write the meta
-		_, err = w.Write(metaBytes)
+		// _, err = w.Write(metaBytes)
+		_, err = trunkWriter.Write(metaBytes)
 		if err != nil {
 			return 0, err
 		}
 		// now write the compressed data
-		_, err = w.Write(compressed)
+		// _, err = w.Write(compressed)
+		_, err = trunkWriter.Write(data)
 		if err != nil {
+			return 0, err
+		}
+
+		// trunk line
+		if err := trunkWriter.NewLine(); err != nil {
 			return 0, err
 		}
 
@@ -768,47 +794,81 @@ func mergeStoredAndRemapSegment(seg *Segment, dropsI *roaring.Bitmap, segNewDocN
 // copyStoredDocs writes out a segment's stored doc info, optimized by
 // using a single Write() call for the entire set of bytes.  The
 // newDocNumOffsets is filled with the new offsets for each doc.
-func (s *Segment) copyStoredDocs(newDocNum uint64, newDocNumOffsets []uint64,
-	w *countHashWriter) error {
+func (s *Segment) copyStoredDocs(newDocNum uint64, newDocNumOffsets []uint64, myTrunk *zincTrunker) error {
 	if s.footer.numDocs <= 0 {
 		return nil
 	}
 
-	indexOffset0, storedOffset0, err := s.getDocStoredOffsetsOnly(0) // the segment's first doc
-	if err != nil {
-		return err
-	}
-
-	indexOffsetN, storedOffsetN, readN, metaLenN, dataLenN, err :=
-		s.getDocStoredOffsets(s.footer.numDocs - 1) // the segment's last doc
-	if err != nil {
-		return err
-	}
-
-	storedOffset0New := uint64(w.Count())
-
-	storedBytesData, err := s.data.Read(int(storedOffset0), int(storedOffsetN+readN+metaLenN+dataLenN))
-	if err != nil {
-		return err
-	}
-	storedBytes := storedBytesData
-	_, err = w.Write(storedBytes)
-	if err != nil {
-		return err
-	}
-
-	// remap the storedOffset's for the docs into new offsets relative
-	// to storedOffset0New, filling the given docNumOffsetsOut array
-	for indexOffset := indexOffset0; indexOffset <= indexOffsetN; indexOffset += fileAddrWidth {
-		storedOffsetData, err := s.data.Read(int(indexOffset), int(indexOffset+fileAddrWidth))
+	// visit documents and rewrite to trunk
+	uncompressed := make([]byte, 0)
+	for i := 0; i < len(s.storedFieldTrunkOffset)-1; i++ {
+		trunkOffstart := s.storedFieldTrunkOffset[i]
+		trunkOffend := s.storedFieldTrunkOffset[i+1]
+		if trunkOffstart == trunkOffend {
+			continue
+		}
+		compressed, err := s.data.Read(int(trunkOffstart), int(trunkOffend))
 		if err != nil {
 			return err
 		}
-		storedOffset := binary.BigEndian.Uint64(storedOffsetData)
-		storedOffsetNew := storedOffset - storedOffset0 + storedOffset0New
-		newDocNumOffsets[newDocNum] = storedOffsetNew // PANIC
-		newDocNum++
+		uncompressed, err = snappy.Decode(uncompressed[:cap(uncompressed)], compressed)
+		if err != nil {
+			log.Panic(err)
+			return err
+		}
+		storedOffset := 0
+		n := 0
+		for storedOffset < len(uncompressed) {
+			n = 0
+			metaLenData := uncompressed[storedOffset : storedOffset+int(binary.MaxVarintLen64)]
+			metaLen, read := binary.Uvarint(metaLenData)
+			n += read
+			dataLenData := uncompressed[storedOffset+n : storedOffset+n+int(binary.MaxVarintLen64)]
+			dataLen, read := binary.Uvarint(dataLenData)
+			n += read
+			newDocNumOffsets[newDocNum] = uint64(myTrunk.BufferSize())
+			myTrunk.Write(uncompressed[storedOffset : storedOffset+n+int(metaLen)+int(dataLen)])
+			myTrunk.NewLine()
+			storedOffset += n + int(metaLen+dataLen)
+			newDocNum++
+		}
 	}
+
+	// indexOffset0, storedOffset0, err := s.getDocStoredOffsetsOnly(0) // the segment's first doc
+	// if err != nil {
+	// 	return err
+	// }
+
+	// indexOffsetN, storedOffsetN, readN, metaLenN, dataLenN, err :=
+	// 	s.getDocStoredOffsets(s.footer.numDocs - 1) // the segment's last doc
+	// if err != nil {
+	// 	return err
+	// }
+
+	// storedOffset0New := uint64(w.Count())
+
+	// storedBytesData, err := s.data.Read(int(storedOffset0), int(storedOffsetN+readN+metaLenN+dataLenN))
+	// if err != nil {
+	// 	return err
+	// }
+	// storedBytes := storedBytesData
+	// _, err = w.Write(storedBytes)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// // remap the storedOffset's for the docs into new offsets relative
+	// // to storedOffset0New, filling the given docNumOffsetsOut array
+	// for indexOffset := indexOffset0; indexOffset <= indexOffsetN; indexOffset += fileAddrWidth {
+	// 	storedOffsetData, err := s.data.Read(int(indexOffset), int(indexOffset+fileAddrWidth))
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	storedOffset := binary.BigEndian.Uint64(storedOffsetData)
+	// 	storedOffsetNew := storedOffset - storedOffset0 + storedOffset0New
+	// 	newDocNumOffsets[newDocNum] = storedOffsetNew // PANIC
+	// 	newDocNum++
+	// }
 
 	return nil
 }

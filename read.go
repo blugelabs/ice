@@ -14,7 +14,11 @@
 
 package ice
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+
+	"github.com/golang/snappy"
+)
 
 func (s *Segment) getDocStoredMetaAndCompressed(docNum uint64) (meta, data []byte, err error) {
 	_, storedOffset, n, metaLen, dataLen, err := s.getDocStoredOffsets(docNum)
@@ -22,14 +26,21 @@ func (s *Segment) getDocStoredMetaAndCompressed(docNum uint64) (meta, data []byt
 		return nil, nil, err
 	}
 
-	meta, err = s.data.Read(int(storedOffset+n), int(storedOffset+n+metaLen))
+	// zinc trunk
+	trunI := docNum / uint64(zincTrunkerSize)
+	trunkOffstart := s.storedFieldTrunkOffset[int(trunI)]
+	trunkOffend := s.storedFieldTrunkOffset[int(trunI)+1]
+	compressed, err := s.data.Read(int(trunkOffstart), int(trunkOffend))
 	if err != nil {
 		return nil, nil, err
 	}
-	data, err = s.data.Read(int(storedOffset+n+metaLen), int(storedOffset+n+metaLen+dataLen))
+	s.storedFieldTrunkUncompressed, err = snappy.Decode(s.storedFieldTrunkUncompressed[:cap(s.storedFieldTrunkUncompressed)], compressed)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	meta = s.storedFieldTrunkUncompressed[int(storedOffset+n):int(storedOffset+n+metaLen)]
+	data = s.storedFieldTrunkUncompressed[int(storedOffset+n+metaLen):int(storedOffset+n+metaLen+dataLen)]
 
 	return meta, data, nil
 }
@@ -44,18 +55,25 @@ func (s *Segment) getDocStoredOffsets(docNum uint64) (
 	}
 	storedOffset = binary.BigEndian.Uint64(storedOffsetData)
 
-	metaLenData, err := s.data.Read(int(storedOffset), int(storedOffset+binary.MaxVarintLen64))
+	// zinc trunk
+	trunI := docNum / uint64(zincTrunkerSize)
+	trunkOffsetStart := s.storedFieldTrunkOffset[int(trunI)]
+	trunkOffsetEnd := s.storedFieldTrunkOffset[int(trunI)+1]
+	compressed, err := s.data.Read(int(trunkOffsetStart), int(trunkOffsetEnd))
 	if err != nil {
 		return 0, 0, 0, 0, 0, err
 	}
+	s.storedFieldTrunkUncompressed, err = snappy.Decode(s.storedFieldTrunkUncompressed[:cap(s.storedFieldTrunkUncompressed)], compressed)
+	if err != nil {
+		return 0, 0, 0, 0, 0, err
+	}
+
+	metaLenData := s.storedFieldTrunkUncompressed[int(storedOffset):int(storedOffset+binary.MaxVarintLen64)]
 	var read int
 	metaLen, read = binary.Uvarint(metaLenData)
 	n += uint64(read)
 
-	dataLenData, err := s.data.Read(int(storedOffset+n), int(storedOffset+n+binary.MaxVarintLen64))
-	if err != nil {
-		return 0, 0, 0, 0, 0, err
-	}
+	dataLenData := s.storedFieldTrunkUncompressed[int(storedOffset+n):int(storedOffset+n+binary.MaxVarintLen64)]
 	dataLen, read = binary.Uvarint(dataLenData)
 	n += uint64(read)
 
