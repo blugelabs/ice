@@ -258,6 +258,9 @@ func (p *PostingsList) read(postingsOffset uint64, d *Dictionary) error {
 		return err
 	}
 	p.locOffset, read = binary.Uvarint(locOffsetData)
+	if p.locOffset > 0 && p.freqOffset > 0 {
+		p.locOffset += p.freqOffset
+	}
 	n += uint64(read)
 
 	postingsLenData, err := d.sb.data.Read(int(postingsOffset+n), int(postingsOffset+n+binary.MaxVarintLen64))
