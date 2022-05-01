@@ -609,9 +609,6 @@ func (s *interim) writeStoredFields() (
 		}
 
 		metaBytes := s.metaBuf.Bytes()
-
-		// compressed = ZSTDCompress(compressed[:cap(compressed)], data, 3)
-		// docStoredOffsets[docNum] = uint64(s.w.Count())
 		docStoredOffsets[docNum] = uint64(trunkWriter.BufferSize())
 
 		err = writeUvarints(trunkWriter,

@@ -17,7 +17,6 @@
 package ice
 
 import (
-	"fmt"
 	"log"
 	"sync"
 
@@ -68,11 +67,6 @@ func ZSTDCompressBound(srcSize int) int {
 // Check logs fatal if err != nil.
 func Check(err error) {
 	if err != nil {
-		log.Fatalf("%+v", Wrap(err, ""))
+		log.Fatalf("%+v", err)
 	}
-}
-
-// Wrap wraps errors from external lib.
-func Wrap(err error, msg string) error {
-	return fmt.Errorf("%s err: %+v", msg, err)
 }
