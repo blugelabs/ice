@@ -105,11 +105,15 @@ func (c *chunkedContentCoder) flushContents() error {
 	}
 
 	// write out the metaData slice
+	diffDocNum := uint64(0)
+	diffDvOffset := uint64(0)
 	for _, meta := range c.chunkMeta {
-		err := writeUvarints(&c.chunkMetaBuf, meta.DocNum, meta.DocDvOffset)
+		err := writeUvarints(&c.chunkMetaBuf, meta.DocNum-diffDocNum, meta.DocDvOffset-diffDvOffset)
 		if err != nil {
 			return err
 		}
+		diffDocNum = meta.DocNum
+		diffDvOffset = meta.DocDvOffset
 	}
 
 	// write the metadata to final data

@@ -162,6 +162,9 @@ func (di *docValueReader) loadDvChunk(chunkNumber uint64, s *Segment) error {
 	} else {
 		di.curChunkHeader = di.curChunkHeader[:int(numDocs)]
 	}
+
+	diffDocNum := uint64(0)
+	diffDvOffset := uint64(0)
 	for i := 0; i < int(numDocs); i++ {
 		var docNumData []byte
 		docNumData, err = s.data.Read(int(chunkMetaLoc+offset), int(chunkMetaLoc+offset+binary.MaxVarintLen64))
@@ -169,6 +172,8 @@ func (di *docValueReader) loadDvChunk(chunkNumber uint64, s *Segment) error {
 			return err
 		}
 		di.curChunkHeader[i].DocNum, read = binary.Uvarint(docNumData)
+		di.curChunkHeader[i].DocNum += diffDocNum
+		diffDocNum = di.curChunkHeader[i].DocNum
 		offset += uint64(read)
 		var docDvOffsetData []byte
 		docDvOffsetData, err = s.data.Read(int(chunkMetaLoc+offset), int(chunkMetaLoc+offset+binary.MaxVarintLen64))
@@ -176,6 +181,8 @@ func (di *docValueReader) loadDvChunk(chunkNumber uint64, s *Segment) error {
 			return err
 		}
 		di.curChunkHeader[i].DocDvOffset, read = binary.Uvarint(docDvOffsetData)
+		di.curChunkHeader[i].DocDvOffset += diffDvOffset
+		diffDvOffset = di.curChunkHeader[i].DocDvOffset
 		offset += uint64(read)
 	}
 
