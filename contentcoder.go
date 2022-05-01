@@ -112,17 +112,21 @@ func (c *chunkedContentCoder) flushContents() error {
 		}
 	}
 
+	// merge chunkBuf
+	c.chunkBuf.WriteTo(&c.chunkMetaBuf)
+
 	// write the metadata to final data
-	metaData := c.chunkMetaBuf.Bytes()
-	c.final = append(c.final, c.chunkMetaBuf.Bytes()...)
+	// metaData := c.chunkMetaBuf.Bytes()
+	// c.final = append(c.final, c.chunkMetaBuf.Bytes()...)
 	// write the compressed data to the final data
-	c.compressed, err = ZSTDCompress(c.compressed[:cap(c.compressed)], c.chunkBuf.Bytes(), 3)
+	c.compressed, err = ZSTDCompress(c.compressed[:cap(c.compressed)], c.chunkMetaBuf.Bytes(), 3)
 	if err != nil {
 		return err
 	}
 	c.final = append(c.final, c.compressed...)
 
-	c.chunkLens[c.currChunk] = uint64(len(c.compressed) + len(metaData))
+	// c.chunkLens[c.currChunk] = uint64(len(c.compressed) + len(metaData))
+	c.chunkLens[c.currChunk] = uint64(len(c.compressed))
 
 	if c.progressiveWrite {
 		_, err := c.w.Write(c.final)

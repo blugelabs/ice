@@ -145,11 +145,21 @@ func (di *docValueReader) loadDvChunk(chunkNumber uint64, s *Segment) error {
 	destChunkDataLoc += start
 	curChunkEnd += end
 
-	// read the number of docs reside in the chunk
-	numDocsData, err := s.data.Read(int(destChunkDataLoc), int(destChunkDataLoc+binary.MaxVarintLen64))
+	// load compressed data
+	curChunkData, err := s.data.Read(int(destChunkDataLoc), int(curChunkEnd))
 	if err != nil {
 		return err
 	}
+	// uncompress data
+	di.uncompressed, err = ZSTDDecompress(di.uncompressed[:cap(di.uncompressed)], curChunkData)
+	if err != nil {
+		return err
+	}
+	// reset data start offset
+	destChunkDataLoc = 0
+
+	// read the number of docs reside in the chunk
+	numDocsData := di.uncompressed[int(destChunkDataLoc):int(destChunkDataLoc+binary.MaxVarintLen64)]
 	numDocs, read := binary.Uvarint(numDocsData)
 	if read <= 0 {
 		return fmt.Errorf("failed to read the chunk")
@@ -163,29 +173,16 @@ func (di *docValueReader) loadDvChunk(chunkNumber uint64, s *Segment) error {
 		di.curChunkHeader = di.curChunkHeader[:int(numDocs)]
 	}
 	for i := 0; i < int(numDocs); i++ {
-		var docNumData []byte
-		docNumData, err = s.data.Read(int(chunkMetaLoc+offset), int(chunkMetaLoc+offset+binary.MaxVarintLen64))
-		if err != nil {
-			return err
-		}
+		docNumData := di.uncompressed[int(chunkMetaLoc+offset):int(chunkMetaLoc+offset+binary.MaxVarintLen64)]
 		di.curChunkHeader[i].DocNum, read = binary.Uvarint(docNumData)
 		offset += uint64(read)
-		var docDvOffsetData []byte
-		docDvOffsetData, err = s.data.Read(int(chunkMetaLoc+offset), int(chunkMetaLoc+offset+binary.MaxVarintLen64))
-		if err != nil {
-			return err
-		}
+		docDvOffsetData := di.uncompressed[int(chunkMetaLoc+offset):int(chunkMetaLoc+offset+binary.MaxVarintLen64)]
 		di.curChunkHeader[i].DocDvOffset, read = binary.Uvarint(docDvOffsetData)
 		offset += uint64(read)
 	}
 
 	compressedDataLoc := chunkMetaLoc + offset
-	dataLength := curChunkEnd - compressedDataLoc
-	curChunkData, err := s.data.Read(int(compressedDataLoc), int(compressedDataLoc+dataLength))
-	if err != nil {
-		return err
-	}
-	di.curChunkData = curChunkData
+	di.curChunkData = di.uncompressed[int(compressedDataLoc):]
 	di.curChunkNum = chunkNumber
 	di.uncompressed = di.uncompressed[:0]
 	return nil
@@ -202,15 +199,15 @@ func (di *docValueReader) iterateAllDocValues(s *Segment, visitor docNumTermsVis
 		}
 
 		// uncompress the already loaded data
-		uncompressed, err := ZSTDDecompress(di.uncompressed[:cap(di.uncompressed)], di.curChunkData)
-		if err != nil {
-			return err
-		}
-		di.uncompressed = uncompressed
+		// uncompressed, err := ZSTDDecompress(di.uncompressed[:cap(di.uncompressed)], di.curChunkData)
+		// if err != nil {
+		// 	return err
+		// }
+		// di.uncompressed = uncompressed
 
 		start := uint64(0)
 		for _, entry := range di.curChunkHeader {
-			err = visitor(entry.DocNum, uncompressed[start:entry.DocDvOffset])
+			err = visitor(entry.DocNum, di.curChunkData[start:entry.DocDvOffset])
 			if err != nil {
 				return err
 			}
@@ -230,22 +227,22 @@ func (di *docValueReader) visitDocValues(docNum uint64,
 		return nil
 	}
 
-	var uncompressed []byte
-	var err error
+	// var uncompressed []byte
+	// var err error
 	// use the uncompressed copy if available
-	if len(di.uncompressed) > 0 {
-		uncompressed = di.uncompressed
-	} else {
-		// uncompress the already loaded data
-		uncompressed, err = ZSTDDecompress(di.uncompressed[:cap(di.uncompressed)], di.curChunkData)
-		if err != nil {
-			return err
-		}
-		di.uncompressed = uncompressed
-	}
+	// if len(di.uncompressed) > 0 {
+	// 	uncompressed = di.uncompressed
+	// } else {
+	// 	uncompress the already loaded data
+	// 	 uncompressed, err = ZSTDDecompress(di.uncompressed[:cap(di.uncompressed)], di.curChunkData)
+	// 	if err != nil {
+	// 	 	return err
+	// 	 }
+	// 	 di.uncompressed = uncompressed
+	// }
 
 	// pick the terms for the given docNum
-	uncompressed = uncompressed[start:end]
+	uncompressed := di.curChunkData[start:end]
 	for {
 		i := bytes.Index(uncompressed, termSeparatorSplitSlice)
 		if i < 0 {
