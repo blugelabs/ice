@@ -90,7 +90,11 @@ func writePostings(postings *roaring.Bitmap, tfEncoder, locEncoder *chunkedIntCo
 		return 0, err
 	}
 
-	n = binary.PutUvarint(bufMaxVarintLen64, locOffset)
+	if locOffset > 0 && tfOffset > 0 {
+		n = binary.PutUvarint(bufMaxVarintLen64, locOffset-tfOffset)
+	} else {
+		n = binary.PutUvarint(bufMaxVarintLen64, locOffset)
+	}
 	_, err = w.Write(bufMaxVarintLen64[:n])
 	if err != nil {
 		return 0, err
