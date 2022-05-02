@@ -755,8 +755,6 @@ func mergeStoredAndRemapSegment(seg *Segment, dropsI *roaring.Bitmap, segNewDocN
 
 		metaBytes := metaBuf.Bytes()
 
-		// compressed = ZSTDCompress(compressed[:cap(compressed)], data, 3)
-
 		// record where we're about to start writing
 		docNumOffsets[newDocNum] = uint64(trunkWriter.BufferSize())
 

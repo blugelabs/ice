@@ -47,8 +47,8 @@ func (t *zincTrunker) Flush() error {
 		if err != nil {
 			return err
 		}
-		t.buf.Reset()
 		t.bytes += n
+		t.buf.Reset()
 	}
 	t.offsets = append(t.offsets, uint64(t.bytes))
 	return nil
