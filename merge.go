@@ -682,10 +682,7 @@ func mergeStoredAndRemap(segments []*Segment, drops []*roaring.Bitmap,
 	}
 
 	// document chunk coder
-	if err := docChunkCoder.Flush(); err != nil {
-		return 0, nil, err
-	}
-	if err := docChunkCoder.WriteMetaData(); err != nil {
+	if err := docChunkCoder.Write(); err != nil {
 		return 0, nil, err
 	}
 
@@ -749,28 +746,9 @@ func mergeStoredAndRemapSegment(seg *Segment, dropsI *roaring.Bitmap, segNewDocN
 		metaBytes := metaBuf.Bytes()
 
 		// record where we're about to start writing
-		docNumOffsets[newDocNum] = uint64(docChunkCoder.BufferSize())
-
-		// write out the meta len and compressed data len
-		err = writeUvarints(docChunkCoder,
-			uint64(len(metaBytes)),
-			uint64(len(compressed)))
-		if err != nil {
-			return 0, err
-		}
-		// now write the meta
-		_, err = docChunkCoder.Write(metaBytes)
-		if err != nil {
-			return 0, err
-		}
-		// now write the compressed data
-		_, err = docChunkCoder.Write(data)
-		if err != nil {
-			return 0, err
-		}
-
+		docNumOffsets[newDocNum] = docChunkCoder.BufferSize()
 		// document chunk line
-		if err := docChunkCoder.NewLine(); err != nil {
+		if _, err := docChunkCoder.Add(newDocNum, metaBytes, data); err != nil {
 			return 0, err
 		}
 
@@ -814,9 +792,10 @@ func (s *Segment) copyStoredDocs(newDocNum uint64, newDocNumOffsets []uint64, do
 			dataLenData := uncompressed[storedOffset+n : storedOffset+n+int(binary.MaxVarintLen64)]
 			dataLen, read := binary.Uvarint(dataLenData)
 			n += read
-			newDocNumOffsets[newDocNum] = uint64(docChunkCoder.BufferSize())
-			docChunkCoder.Write(uncompressed[storedOffset : storedOffset+n+int(metaLen)+int(dataLen)])
-			if err := docChunkCoder.NewLine(); err != nil {
+			newDocNumOffsets[newDocNum] = docChunkCoder.BufferSize()
+			metaBytes := uncompressed[storedOffset+n : storedOffset+n+int(metaLen)]
+			data := uncompressed[storedOffset+n+int(metaLen) : storedOffset+n+int(metaLen)+int(dataLen)]
+			if _, err := docChunkCoder.Add(newDocNum, metaBytes, data); err != nil {
 				return err
 			}
 			storedOffset += n + int(metaLen+dataLen)

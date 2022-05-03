@@ -30,19 +30,44 @@ func NewChunkedDocumentCoder(chunkSize uint64, w io.Writer) *chunkedDocumentCode
 	return t
 }
 
-func (t *chunkedDocumentCoder) Write(data []byte) (int, error) {
+func (t *chunkedDocumentCoder) Add(docNum uint64, meta, data []byte) (int, error) {
+	var wn, n int
+	var err error
+	n = binary.PutUvarint(t.metaBuf, uint64(len(meta)))
+	if n, err = t.writeToBuf(t.metaBuf[:n]); err != nil {
+		return 0, err
+	}
+	wn += n
+	n = binary.PutUvarint(t.metaBuf, uint64(len(data)))
+	if n, err = t.writeToBuf(t.metaBuf[:n]); err != nil {
+		return 0, err
+	}
+	wn += n
+	if n, err = t.writeToBuf(meta); err != nil {
+		return 0, err
+	}
+	wn += n
+	if n, err = t.writeToBuf(data); err != nil {
+		return 0, err
+	}
+	wn += n
+
+	return wn, t.newLine()
+}
+
+func (t *chunkedDocumentCoder) writeToBuf(data []byte) (int, error) {
 	return t.buf.Write(data)
 }
 
-func (t *chunkedDocumentCoder) NewLine() error {
+func (t *chunkedDocumentCoder) newLine() error {
 	t.n++
 	if t.n%t.chunkSize != 0 {
 		return nil
 	}
-	return t.Flush()
+	return t.flush()
 }
 
-func (t *chunkedDocumentCoder) Flush() error {
+func (t *chunkedDocumentCoder) flush() error {
 	if t.buf.Len() > 0 {
 		var err error
 		t.compressed, err = ZSTDCompress(t.compressed[:cap(t.compressed)], t.buf.Bytes(), 3)
@@ -60,9 +85,13 @@ func (t *chunkedDocumentCoder) Flush() error {
 	return nil
 }
 
-func (t *chunkedDocumentCoder) WriteMetaData() error {
+func (t *chunkedDocumentCoder) Write() error {
 	var err error
 	var wn, n int
+	// flush
+	if err = t.flush(); err != nil {
+		return err
+	}
 	// write chunk offsets
 	for _, offset := range t.offsets {
 		n = binary.PutUvarint(t.metaBuf, offset)
@@ -77,7 +106,7 @@ func (t *chunkedDocumentCoder) WriteMetaData() error {
 		return err
 	}
 	// write chunk num
-	err = binary.Write(t.w, binary.BigEndian, uint32(t.Len()))
+	err = binary.Write(t.w, binary.BigEndian, uint32(len(t.offsets)))
 	if err != nil {
 		return err
 	}
@@ -92,16 +121,7 @@ func (t *chunkedDocumentCoder) Reset() {
 	t.buf.Reset()
 }
 
-func (t *chunkedDocumentCoder) Offsets() []uint64 {
-	return t.offsets
-}
-
-// Len returns chunk nums
-func (t *chunkedDocumentCoder) Len() int {
-	return len(t.offsets)
-}
-
 // BufferSize returns buffer len
-func (t *chunkedDocumentCoder) BufferSize() int {
-	return t.buf.Len()
+func (t *chunkedDocumentCoder) BufferSize() uint64 {
+	return uint64(t.buf.Len())
 }

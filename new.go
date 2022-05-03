@@ -609,36 +609,15 @@ func (s *interim) writeStoredFields() (
 		}
 
 		metaBytes := s.metaBuf.Bytes()
-		docStoredOffsets[docNum] = uint64(docChunkCoder.BufferSize())
-
-		err = writeUvarints(docChunkCoder,
-			uint64(len(metaBytes)),
-			uint64(len(data)))
+		docStoredOffsets[docNum] = docChunkCoder.BufferSize()
+		_, err = docChunkCoder.Add(uint64(docNum), metaBytes, data)
 		if err != nil {
-			return 0, err
-		}
-
-		_, err = docChunkCoder.Write(metaBytes)
-		if err != nil {
-			return 0, err
-		}
-
-		_, err = docChunkCoder.Write(data)
-		if err != nil {
-			return 0, err
-		}
-
-		// document chunk line
-		if err := docChunkCoder.NewLine(); err != nil {
 			return 0, err
 		}
 	}
 
 	// document chunk coder
-	if err := docChunkCoder.Flush(); err != nil {
-		return 0, err
-	}
-	if err := docChunkCoder.WriteMetaData(); err != nil {
+	if err := docChunkCoder.Write(); err != nil {
 		return 0, err
 	}
 
