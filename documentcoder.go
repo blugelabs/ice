@@ -19,7 +19,7 @@ type chunkedDocumentCoder struct {
 	offsets    []uint64
 }
 
-func NewChunkedDocumentCoder(chunkSize uint64, w io.Writer) *chunkedDocumentCoder {
+func newChunkedDocumentCoder(chunkSize uint64, w io.Writer) *chunkedDocumentCoder {
 	t := &chunkedDocumentCoder{
 		chunkSize: chunkSize,
 		w:         w,
@@ -88,10 +88,6 @@ func (t *chunkedDocumentCoder) flush() error {
 func (t *chunkedDocumentCoder) Write() error {
 	var err error
 	var wn, n int
-	// flush
-	if err = t.flush(); err != nil {
-		return err
-	}
 	// write chunk offsets
 	for _, offset := range t.offsets {
 		n = binary.PutUvarint(t.metaBuf, offset)
@@ -113,6 +109,12 @@ func (t *chunkedDocumentCoder) Write() error {
 	return nil
 }
 
+// Close indicates you are done calling Add() this allows
+// the final chunk to be encoded.
+func (c *chunkedDocumentCoder) Close() error {
+	return c.flush()
+}
+
 func (t *chunkedDocumentCoder) Reset() {
 	t.compressed = t.compressed[:0]
 	t.offsets = t.offsets[:0]
@@ -124,4 +126,9 @@ func (t *chunkedDocumentCoder) Reset() {
 // BufferSize returns buffer len
 func (t *chunkedDocumentCoder) BufferSize() uint64 {
 	return uint64(t.buf.Len())
+}
+
+// Len returns trunks num
+func (t *chunkedDocumentCoder) Len() int {
+	return len(t.offsets)
 }

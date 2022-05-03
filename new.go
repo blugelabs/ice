@@ -569,7 +569,7 @@ func (s *interim) writeStoredFields() (
 	docStoredFields := map[uint16]interimStoredField{}
 
 	// document chunk coder
-	docChunkCoder := NewChunkedDocumentCoder(uint64(defaultDocumentChunkSize), s.w)
+	docChunkCoder := newChunkedDocumentCoder(uint64(defaultDocumentChunkSize), s.w)
 
 	for docNum, result := range s.results {
 		for fieldID := range docStoredFields { // reset for next doc
@@ -617,6 +617,9 @@ func (s *interim) writeStoredFields() (
 	}
 
 	// document chunk coder
+	if err := docChunkCoder.Close(); err != nil {
+		return 0, err
+	}
 	if err := docChunkCoder.Write(); err != nil {
 		return 0, err
 	}

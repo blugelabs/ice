@@ -65,7 +65,7 @@ func TestChunkedContentCoder(t *testing.T) {
 		for i, docNum := range test.docNums {
 			err := cic.Add(docNum, test.vals[i])
 			if err != nil {
-				t.Fatalf("error adding to intcoder: %v", err)
+				t.Fatalf("error adding to contentcoder: %v", err)
 			}
 		}
 		_ = cic.Close()
@@ -102,11 +102,11 @@ func TestChunkedContentCoders(t *testing.T) {
 	for i, docNum := range docNums {
 		err := cic1.Add(docNum, vals[i])
 		if err != nil {
-			t.Fatalf("error adding to intcoder: %v", err)
+			t.Fatalf("error adding to contentcoder: %v", err)
 		}
 		err = cic2.Add(docNum, vals[i])
 		if err != nil {
-			t.Fatalf("error adding to intcoder: %v", err)
+			t.Fatalf("error adding to contentcoder: %v", err)
 		}
 	}
 	_ = cic1.Close()

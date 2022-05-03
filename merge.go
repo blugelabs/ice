@@ -640,7 +640,7 @@ func mergeStoredAndRemap(segments []*Segment, drops []*roaring.Bitmap,
 	defer visitDocumentCtxPool.Put(vdc)
 
 	// document chunk coder
-	docChunkCoder := NewChunkedDocumentCoder(uint64(defaultDocumentChunkSize), w)
+	docChunkCoder := newChunkedDocumentCoder(uint64(defaultDocumentChunkSize), w)
 
 	// for each segment
 	for segI, seg := range segments {
@@ -682,6 +682,9 @@ func mergeStoredAndRemap(segments []*Segment, drops []*roaring.Bitmap,
 	}
 
 	// document chunk coder
+	if err := docChunkCoder.Close(); err != nil {
+		return 0, nil, err
+	}
 	if err := docChunkCoder.Write(); err != nil {
 		return 0, nil, err
 	}
