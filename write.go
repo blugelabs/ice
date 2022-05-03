@@ -131,6 +131,7 @@ func numUvarintBytes(x uint64) (n int) {
 // then writes out the roaring bitmap itself
 func writeRoaringWithLen(r *roaring.Bitmap, w io.Writer,
 	reuseBufVarint []byte) (int, error) {
+	r.RunOptimize()
 	buf, err := r.ToBytes()
 	if err != nil {
 		return 0, err
