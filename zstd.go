@@ -35,7 +35,9 @@ func ZSTDDecompress(dst, src []byte) ([]byte, error) {
 	decOnce.Do(func() {
 		var err error
 		decoder, err = zstd.NewReader(nil)
-		Check(err)
+		if err != nil {
+			log.Fatalf("%+v", err)
+		}
 	})
 	return decoder.DecodeAll(src, dst[:0])
 }
@@ -46,7 +48,9 @@ func ZSTDCompress(dst, src []byte, compressionLevel int) ([]byte, error) {
 		var err error
 		level := zstd.EncoderLevelFromZstd(compressionLevel)
 		encoder, err = zstd.NewWriter(nil, zstd.WithEncoderLevel(level))
-		Check(err)
+		if err != nil {
+			log.Fatalf("%+v", err)
+		}
 	})
 	return encoder.EncodeAll(src, dst[:0]), nil
 }
@@ -62,11 +66,4 @@ func ZSTDCompressBound(srcSize int) int {
 		margin = (lowLimit - srcSize) >> 11
 	}
 	return srcSize + (srcSize >> 8) + margin
-}
-
-// Check logs fatal if err != nil.
-func Check(err error) {
-	if err != nil {
-		log.Fatalf("%+v", err)
-	}
 }

@@ -568,8 +568,8 @@ func (s *interim) writeStoredFields() (
 	// keyed by fieldID, for the current doc in the loop
 	docStoredFields := map[uint16]interimStoredField{}
 
-	// zinc trunk
-	trunkWriter := NewZincTrunker(s.w)
+	// document chunk coder
+	docChunkCoder := NewChunkedDocumentCoder(uint64(defaultDocumentChunkSize), s.w)
 
 	for docNum, result := range s.results {
 		for fieldID := range docStoredFields { // reset for next doc
@@ -609,46 +609,36 @@ func (s *interim) writeStoredFields() (
 		}
 
 		metaBytes := s.metaBuf.Bytes()
-		docStoredOffsets[docNum] = uint64(trunkWriter.BufferSize())
+		docStoredOffsets[docNum] = uint64(docChunkCoder.BufferSize())
 
-		err = writeUvarints(trunkWriter,
+		err = writeUvarints(docChunkCoder,
 			uint64(len(metaBytes)),
 			uint64(len(data)))
 		if err != nil {
 			return 0, err
 		}
 
-		// _, err = s.w.Write(metaBytes)
-		_, err = trunkWriter.Write(metaBytes)
+		_, err = docChunkCoder.Write(metaBytes)
 		if err != nil {
 			return 0, err
 		}
 
-		// _, err = s.w.Write(compressed)
-		_, err = trunkWriter.Write(data)
+		_, err = docChunkCoder.Write(data)
 		if err != nil {
 			return 0, err
 		}
 
-		// trunk line
-		if err := trunkWriter.NewLine(); err != nil {
-			return 0, err
-		}
-
-	}
-
-	// zinc trunk
-	trunkWriter.Flush()
-	// write chunk offsets
-	for _, offset := range trunkWriter.Offsets() {
-		err = binary.Write(s.w, binary.BigEndian, offset)
-		if err != nil {
+		// document chunk line
+		if err := docChunkCoder.NewLine(); err != nil {
 			return 0, err
 		}
 	}
-	// write chunk num
-	err = binary.Write(s.w, binary.BigEndian, uint32(trunkWriter.Len()))
-	if err != nil {
+
+	// document chunk coder
+	if err := docChunkCoder.Flush(); err != nil {
+		return 0, err
+	}
+	if err := docChunkCoder.WriteMetaData(); err != nil {
 		return 0, err
 	}
 

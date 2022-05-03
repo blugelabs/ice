@@ -55,7 +55,7 @@ func load(data *segment.Data) (*Segment, error) {
 		return nil, err
 	}
 
-	err = rv.loadStoredFieldTrunk()
+	err = rv.loadStoredFieldChunk()
 	if err != nil {
 		return nil, err
 	}
@@ -134,24 +134,38 @@ func (s *Segment) loadFields() error {
 	return nil
 }
 
-func (s *Segment) loadStoredFieldTrunk() error {
-	// read trunk num
-	trunkOffsetPos := int(s.footer.storedIndexOffset - 4) // uint32
-	trunkData, err := s.data.Read(trunkOffsetPos, trunkOffsetPos+4)
+// loadStoredFieldChunk load storedField chunk offsets
+func (s *Segment) loadStoredFieldChunk() error {
+	// read chunk num
+	chunkOffsetPos := int(s.footer.storedIndexOffset - 4) // uint32
+	chunkData, err := s.data.Read(chunkOffsetPos, chunkOffsetPos+4)
 	if err != nil {
 		return err
 	}
-	trunkNum := binary.BigEndian.Uint32(trunkData)
-	// read trunk offsets
-	trunkOffsetPos -= 8 * int(trunkNum)
-	trunkData, err = s.data.Read(trunkOffsetPos, trunkOffsetPos+int(8*trunkNum))
+	chunkNum := binary.BigEndian.Uint32(chunkData)
+	chunkOffsetPos -= 4
+	// read chunk offsets length
+	chunkData, err = s.data.Read(chunkOffsetPos, chunkOffsetPos+4)
 	if err != nil {
 		return err
 	}
-	s.storedFieldTrunkOffset = make(map[int]uint64, trunkNum)
-	for i := 0; i < int(trunkNum); i++ {
-		offset := binary.BigEndian.Uint64(trunkData[i*8 : i*8+8])
-		s.storedFieldTrunkOffset[i] = offset
+	chunkOffsetsLen := binary.BigEndian.Uint32(chunkData)
+	// read chunk offsets
+	chunkOffsetPos -= int(chunkOffsetsLen)
+	chunkData, err = s.data.Read(chunkOffsetPos, chunkOffsetPos+int(chunkOffsetsLen))
+	if err != nil {
+		return err
+	}
+	var offset, read int
+	var offsetata []byte
+	s.storedFieldChunkOffset = make(map[int]uint64, chunkNum)
+	for i := 0; i < int(chunkNum); i++ {
+		offsetata, err = s.data.Read(chunkOffsetPos+offset, chunkOffsetPos+offset+binary.MaxVarintLen64)
+		if err != nil {
+			return err
+		}
+		s.storedFieldChunkOffset[i], read = binary.Uvarint(offsetata)
+		offset += read
 	}
 
 	return nil
