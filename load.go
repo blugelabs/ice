@@ -137,25 +137,21 @@ func (s *Segment) loadFields() error {
 // loadStoredFieldChunk load storedField chunk offsets
 func (s *Segment) loadStoredFieldChunk() error {
 	// read chunk num
-	chunkOffsetPos := int(s.footer.storedIndexOffset - 4) // uint32
-	chunkData, err := s.data.Read(chunkOffsetPos, chunkOffsetPos+4)
+	chunkOffsetPos := int(s.footer.storedIndexOffset - uint64(sizeOfUint32))
+	chunkData, err := s.data.Read(chunkOffsetPos, chunkOffsetPos+sizeOfUint32)
 	if err != nil {
 		return err
 	}
 	chunkNum := binary.BigEndian.Uint32(chunkData)
-	chunkOffsetPos -= 4
+	chunkOffsetPos -= sizeOfUint32
 	// read chunk offsets length
-	chunkData, err = s.data.Read(chunkOffsetPos, chunkOffsetPos+4)
+	chunkData, err = s.data.Read(chunkOffsetPos, chunkOffsetPos+sizeOfUint32)
 	if err != nil {
 		return err
 	}
 	chunkOffsetsLen := binary.BigEndian.Uint32(chunkData)
 	// read chunk offsets
 	chunkOffsetPos -= int(chunkOffsetsLen)
-	chunkData, err = s.data.Read(chunkOffsetPos, chunkOffsetPos+int(chunkOffsetsLen))
-	if err != nil {
-		return err
-	}
 	var offset, read int
 	var offsetata []byte
 	s.storedFieldChunkOffset = make(map[int]uint64, chunkNum)

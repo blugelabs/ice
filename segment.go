@@ -194,18 +194,12 @@ func (s *Segment) visitDocument(vdc *visitDocumentCtx, num uint64,
 	visitor segment.StoredFieldVisitor) error {
 	// first make sure this is a valid number in this segment
 	if num < s.footer.numDocs {
-		meta, compressed, err := s.getDocStoredMetaAndCompressed(num)
+		meta, uncompressed, err := s.getDocStoredMetaAndUnCompressed(num)
 		if err != nil {
 			return err
 		}
 
 		vdc.reader.Reset(meta)
-
-		// uncompressed, err := ZSTDDecompress(vdc.buf[:cap(vdc.buf)], compressed)
-		// if err != nil {
-		// 	return err
-		// }
-		uncompressed := compressed
 
 		var keepGoing = true
 		for keepGoing {

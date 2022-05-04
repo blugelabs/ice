@@ -23,6 +23,8 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
+const ZSTDCompressionLevel = 3 // 1, 3, 9
+
 var (
 	decoder *zstd.Decoder
 	encoder *zstd.Encoder

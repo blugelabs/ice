@@ -20,89 +20,89 @@ type chunkedDocumentCoder struct {
 }
 
 func newChunkedDocumentCoder(chunkSize uint64, w io.Writer) *chunkedDocumentCoder {
-	t := &chunkedDocumentCoder{
+	c := &chunkedDocumentCoder{
 		chunkSize: chunkSize,
 		w:         w,
 	}
-	t.buf = bytes.NewBuffer(nil)
-	t.metaBuf = make([]byte, binary.MaxVarintLen64)
-	t.offsets = append(t.offsets, 0)
-	return t
+	c.buf = bytes.NewBuffer(nil)
+	c.metaBuf = make([]byte, binary.MaxVarintLen64)
+	c.offsets = append(c.offsets, 0)
+	return c
 }
 
-func (t *chunkedDocumentCoder) Add(docNum uint64, meta, data []byte) (int, error) {
+func (c *chunkedDocumentCoder) Add(docNum uint64, meta, data []byte) (int, error) {
 	var wn, n int
 	var err error
-	n = binary.PutUvarint(t.metaBuf, uint64(len(meta)))
-	if n, err = t.writeToBuf(t.metaBuf[:n]); err != nil {
+	n = binary.PutUvarint(c.metaBuf, uint64(len(meta)))
+	if n, err = c.writeToBuf(c.metaBuf[:n]); err != nil {
 		return 0, err
 	}
 	wn += n
-	n = binary.PutUvarint(t.metaBuf, uint64(len(data)))
-	if n, err = t.writeToBuf(t.metaBuf[:n]); err != nil {
+	n = binary.PutUvarint(c.metaBuf, uint64(len(data)))
+	if n, err = c.writeToBuf(c.metaBuf[:n]); err != nil {
 		return 0, err
 	}
 	wn += n
-	if n, err = t.writeToBuf(meta); err != nil {
+	if n, err = c.writeToBuf(meta); err != nil {
 		return 0, err
 	}
 	wn += n
-	if n, err = t.writeToBuf(data); err != nil {
+	if n, err = c.writeToBuf(data); err != nil {
 		return 0, err
 	}
 	wn += n
 
-	return wn, t.newLine()
+	return wn, c.newLine()
 }
 
-func (t *chunkedDocumentCoder) writeToBuf(data []byte) (int, error) {
-	return t.buf.Write(data)
+func (c *chunkedDocumentCoder) writeToBuf(data []byte) (int, error) {
+	return c.buf.Write(data)
 }
 
-func (t *chunkedDocumentCoder) newLine() error {
-	t.n++
-	if t.n%t.chunkSize != 0 {
+func (c *chunkedDocumentCoder) newLine() error {
+	c.n++
+	if c.n%c.chunkSize != 0 {
 		return nil
 	}
-	return t.flush()
+	return c.flush()
 }
 
-func (t *chunkedDocumentCoder) flush() error {
-	if t.buf.Len() > 0 {
+func (c *chunkedDocumentCoder) flush() error {
+	if c.buf.Len() > 0 {
 		var err error
-		t.compressed, err = ZSTDCompress(t.compressed[:cap(t.compressed)], t.buf.Bytes(), 3)
+		c.compressed, err = ZSTDCompress(c.compressed[:cap(c.compressed)], c.buf.Bytes(), ZSTDCompressionLevel)
 		if err != nil {
 			return err
 		}
-		n, err := t.w.Write(t.compressed)
+		n, err := c.w.Write(c.compressed)
 		if err != nil {
 			return err
 		}
-		t.bytes += uint64(n)
-		t.buf.Reset()
+		c.bytes += uint64(n)
+		c.buf.Reset()
 	}
-	t.offsets = append(t.offsets, t.bytes)
+	c.offsets = append(c.offsets, c.bytes)
 	return nil
 }
 
-func (t *chunkedDocumentCoder) Write() error {
+func (c *chunkedDocumentCoder) Write() error {
 	var err error
 	var wn, n int
 	// write chunk offsets
-	for _, offset := range t.offsets {
-		n = binary.PutUvarint(t.metaBuf, offset)
-		if _, err = t.w.Write(t.metaBuf[:n]); err != nil {
+	for _, offset := range c.offsets {
+		n = binary.PutUvarint(c.metaBuf, offset)
+		if _, err = c.w.Write(c.metaBuf[:n]); err != nil {
 			return err
 		}
 		wn += n
 	}
 	// write chunk offset length
-	err = binary.Write(t.w, binary.BigEndian, uint32(wn))
+	err = binary.Write(c.w, binary.BigEndian, uint32(wn))
 	if err != nil {
 		return err
 	}
 	// write chunk num
-	err = binary.Write(t.w, binary.BigEndian, uint32(len(t.offsets)))
+	err = binary.Write(c.w, binary.BigEndian, uint32(len(c.offsets)))
 	if err != nil {
 		return err
 	}
@@ -115,20 +115,20 @@ func (c *chunkedDocumentCoder) Close() error {
 	return c.flush()
 }
 
-func (t *chunkedDocumentCoder) Reset() {
-	t.compressed = t.compressed[:0]
-	t.offsets = t.offsets[:0]
-	t.n = 0
-	t.bytes = 0
-	t.buf.Reset()
+func (c *chunkedDocumentCoder) Reset() {
+	c.compressed = c.compressed[:0]
+	c.offsets = c.offsets[:0]
+	c.n = 0
+	c.bytes = 0
+	c.buf.Reset()
 }
 
 // BufferSize returns buffer len
-func (t *chunkedDocumentCoder) BufferSize() uint64 {
-	return uint64(t.buf.Len())
+func (c *chunkedDocumentCoder) BufferSize() uint64 {
+	return uint64(c.buf.Len())
 }
 
 // Len returns trunks num
-func (t *chunkedDocumentCoder) Len() int {
-	return len(t.offsets)
+func (c *chunkedDocumentCoder) Len() int {
+	return len(c.offsets)
 }

@@ -18,7 +18,7 @@ import (
 	"encoding/binary"
 )
 
-func (s *Segment) getDocStoredMetaAndCompressed(docNum uint64) (meta, data []byte, err error) {
+func (s *Segment) getDocStoredMetaAndUnCompressed(docNum uint64) (meta, data []byte, err error) {
 	_, storedOffset, n, metaLen, dataLen, err := s.getDocStoredOffsets(docNum)
 	if err != nil {
 		return nil, nil, err
@@ -62,7 +62,7 @@ func (s *Segment) getDocStoredOffsets(docNum uint64) (indexOffset, storedOffset,
 }
 
 func (s *Segment) getDocStoredOffsetsOnly(docNum uint64) (indexOffset, storedOffset uint64, err error) {
-	indexOffset = s.footer.storedIndexOffset + (fileAddrWidth * uint64(docNum))
+	indexOffset = s.footer.storedIndexOffset + (fileAddrWidth * docNum)
 	storedOffsetData, err := s.data.Read(int(indexOffset), int(indexOffset+fileAddrWidth))
 	if err != nil {
 		return 0, 0, err

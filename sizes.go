@@ -25,6 +25,8 @@ func init() {
 	sizeOfString = int(reflect.TypeOf(str).Size())
 	var u16 uint16
 	sizeOfUint16 = int(reflect.TypeOf(u16).Size())
+	var u32 uint32
+	sizeOfUint32 = int(reflect.TypeOf(u32).Size())
 	var u64 uint64
 	sizeOfUint64 = int(reflect.TypeOf(u64).Size())
 	reflectStaticSizeSegment = int(reflect.TypeOf(Segment{}).Size())
@@ -45,6 +47,7 @@ func init() {
 var sizeOfPtr int
 var sizeOfString int
 var sizeOfUint16 int
+var sizeOfUint32 int
 var sizeOfUint64 int
 var reflectStaticSizeSegment int
 var reflectStaticSizeMetaData int

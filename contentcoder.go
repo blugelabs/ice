@@ -108,7 +108,7 @@ func (c *chunkedContentCoder) flushContents() error {
 	diffDocNum := uint64(0)
 	diffDvOffset := uint64(0)
 	for _, meta := range c.chunkMeta {
-		err := writeUvarints(&c.chunkMetaBuf, meta.DocNum-diffDocNum, meta.DocDvOffset-diffDvOffset)
+		err = writeUvarints(&c.chunkMetaBuf, meta.DocNum-diffDocNum, meta.DocDvOffset-diffDvOffset)
 		if err != nil {
 			return err
 		}
@@ -120,7 +120,7 @@ func (c *chunkedContentCoder) flushContents() error {
 	metaData := c.chunkMetaBuf.Bytes()
 	c.final = append(c.final, c.chunkMetaBuf.Bytes()...)
 	// write the compressed data to the final data
-	c.compressed, err = ZSTDCompress(c.compressed[:cap(c.compressed)], c.chunkBuf.Bytes(), 3)
+	c.compressed, err = ZSTDCompress(c.compressed[:cap(c.compressed)], c.chunkBuf.Bytes(), ZSTDCompressionLevel)
 	if err != nil {
 		return err
 	}

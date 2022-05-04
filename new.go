@@ -617,10 +617,12 @@ func (s *interim) writeStoredFields() (
 	}
 
 	// document chunk coder
-	if err := docChunkCoder.Close(); err != nil {
+	err = docChunkCoder.Close()
+	if err != nil {
 		return 0, err
 	}
-	if err := docChunkCoder.Write(); err != nil {
+	err = docChunkCoder.Write()
+	if err != nil {
 		return 0, err
 	}
 

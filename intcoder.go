@@ -104,7 +104,7 @@ func (c *chunkedIntCoder) Add(docNum uint64, vals ...uint64) error {
 // to be encoded.
 func (c *chunkedIntCoder) Close() error {
 	var err error
-	c.compressed, err = ZSTDCompress(c.compressed[:cap(c.compressed)], c.chunkBuf.Bytes(), 3)
+	c.compressed, err = ZSTDCompress(c.compressed[:cap(c.compressed)], c.chunkBuf.Bytes(), ZSTDCompressionLevel)
 	if err != nil {
 		return err
 	}

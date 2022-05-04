@@ -624,7 +624,7 @@ func mergeStoredAndRemap(segments []*Segment, drops []*roaring.Bitmap,
 	w *countHashWriter, closeCh chan struct{}) (storedIndexOffset uint64, newDocNums [][]uint64, err error) {
 	var newDocNum uint64
 
-	var data, compressed []byte
+	var data []byte
 	var metaBuf bytes.Buffer
 	varBuf := make([]byte, binary.MaxVarintLen64)
 	metaEncode := func(val uint64) (int, error) {
@@ -673,7 +673,7 @@ func mergeStoredAndRemap(segments []*Segment, drops []*roaring.Bitmap,
 
 		var err2 error
 		newDocNum, err2 = mergeStoredAndRemapSegment(seg, dropsI, segNewDocNums, newDocNum, &metaBuf, data,
-			fieldsInv, vals, vdc, fieldsMap, metaEncode, compressed, docNumOffsets, docChunkCoder)
+			fieldsInv, vals, vdc, fieldsMap, metaEncode, docNumOffsets, docChunkCoder)
 		if err2 != nil {
 			return 0, nil, err2
 		}
@@ -705,7 +705,7 @@ func mergeStoredAndRemap(segments []*Segment, drops []*roaring.Bitmap,
 
 func mergeStoredAndRemapSegment(seg *Segment, dropsI *roaring.Bitmap, segNewDocNums []uint64, newDocNum uint64,
 	metaBuf *bytes.Buffer, data []byte, fieldsInv []string, vals [][][]byte, vdc *visitDocumentCtx,
-	fieldsMap map[string]uint16, metaEncode func(val uint64) (int, error), compressed []byte, docNumOffsets []uint64,
+	fieldsMap map[string]uint16, metaEncode func(val uint64) (int, error), docNumOffsets []uint64,
 	docChunkCoder *chunkedDocumentCoder) (uint64, error) {
 	// for each doc num
 	for docNum := uint64(0); docNum < seg.footer.numDocs; docNum++ {
