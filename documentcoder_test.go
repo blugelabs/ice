@@ -12,7 +12,7 @@ func TestChunkedDocumentCoder(t *testing.T) {
 		metas            [][]byte
 		datas            [][]byte
 		expected         []byte
-		expectedTrunkNum int
+		expectedChunkNum int
 	}{
 		{
 			chunkSize: 1,
@@ -24,7 +24,7 @@ func TestChunkedDocumentCoder(t *testing.T) {
 				0x0, 0x0, 0x1, 0x5, 0x0, 0x62, 0x6c, 0x75, 0x67, 0x65, 0x2b, 0x30, 0x97, 0x33, 0x0, 0x15, 0x15,
 				0x0, 0x0, 0x0, 0x3, 0x0, 0x0, 0x0, 0x3,
 			},
-			expectedTrunkNum: 3, // left, trunk, right
+			expectedChunkNum: 3, // left, chunk, right
 		},
 		{
 			chunkSize: 1,
@@ -39,7 +39,7 @@ func TestChunkedDocumentCoder(t *testing.T) {
 				0x8f, 0x83, 0xa3, 0x37, 0x0, 0x16, 0x2c, 0x2c,
 				0x0, 0x0, 0x0, 0x4, 0x0, 0x0, 0x0, 0x4,
 			},
-			expectedTrunkNum: 4, // left, trunk, trunk, right
+			expectedChunkNum: 4, // left, chunk, chunk, right
 		},
 	}
 
@@ -60,8 +60,8 @@ func TestChunkedDocumentCoder(t *testing.T) {
 		if !bytes.Equal(test.expected, actual.Bytes()) {
 			t.Errorf("got:%s, expected:%s", actual.String(), string(test.expected))
 		}
-		if test.expectedTrunkNum != cic.Len() {
-			t.Errorf("got:%d, expected:%d", cic.Len(), test.expectedTrunkNum)
+		if test.expectedChunkNum != cic.Len() {
+			t.Errorf("got:%d, expected:%d", cic.Len(), test.expectedChunkNum)
 		}
 	}
 }
@@ -85,7 +85,7 @@ func TestChunkedDocumentCoders(t *testing.T) {
 		[]byte("upside"),
 		[]byte("down"),
 	}
-	trunkNum := 5 // left, trunk, trunk, trunk, right
+	chunkNum := 5 // left, chunk, chunk, chunk, right
 
 	var actual1, actual2 bytes.Buffer
 	// chunkedDocumentCoder that writes out at the end
@@ -118,10 +118,10 @@ func TestChunkedDocumentCoders(t *testing.T) {
 	if !bytes.Equal(actual1.Bytes(), actual2.Bytes()) {
 		t.Errorf("%s != %s", actual1.String(), actual2.String())
 	}
-	if trunkNum != cic1.Len() {
-		t.Errorf("got:%d, expected:%d", cic1.Len(), trunkNum)
+	if chunkNum != cic1.Len() {
+		t.Errorf("got:%d, expected:%d", cic1.Len(), chunkNum)
 	}
-	if trunkNum != cic2.Len() {
-		t.Errorf("got:%d, expected:%d", cic2.Len(), trunkNum)
+	if chunkNum != cic2.Len() {
+		t.Errorf("got:%d, expected:%d", cic2.Len(), chunkNum)
 	}
 }

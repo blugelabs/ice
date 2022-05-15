@@ -128,7 +128,7 @@ func (c *chunkedDocumentCoder) BufferSize() uint64 {
 	return uint64(c.buf.Len())
 }
 
-// Len returns trunks num
+// Len returns chunks num
 func (c *chunkedDocumentCoder) Len() int {
 	return len(c.offsets)
 }
