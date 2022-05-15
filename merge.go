@@ -682,9 +682,6 @@ func mergeStoredAndRemap(segments []*Segment, drops []*roaring.Bitmap,
 	}
 
 	// document chunk coder
-	if err := docChunkCoder.Close(); err != nil {
-		return 0, nil, err
-	}
 	if err := docChunkCoder.Write(); err != nil {
 		return 0, nil, err
 	}
@@ -749,7 +746,7 @@ func mergeStoredAndRemapSegment(seg *Segment, dropsI *roaring.Bitmap, segNewDocN
 		metaBytes := metaBuf.Bytes()
 
 		// record where we're about to start writing
-		docNumOffsets[newDocNum] = docChunkCoder.BufferSize()
+		docNumOffsets[newDocNum] = docChunkCoder.Size()
 		// document chunk line
 		if _, err := docChunkCoder.Add(newDocNum, metaBytes, data); err != nil {
 			return 0, err
@@ -795,7 +792,7 @@ func (s *Segment) copyStoredDocs(newDocNum uint64, newDocNumOffsets []uint64, do
 			dataLenData := uncompressed[storedOffset+n : storedOffset+n+int(binary.MaxVarintLen64)]
 			dataLen, read := binary.Uvarint(dataLenData)
 			n += read
-			newDocNumOffsets[newDocNum] = docChunkCoder.BufferSize()
+			newDocNumOffsets[newDocNum] = docChunkCoder.Size()
 			metaBytes := uncompressed[storedOffset+n : storedOffset+n+int(metaLen)]
 			data := uncompressed[storedOffset+n+int(metaLen) : storedOffset+n+int(metaLen)+int(dataLen)]
 			if _, err := docChunkCoder.Add(newDocNum, metaBytes, data); err != nil {

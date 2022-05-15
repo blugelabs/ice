@@ -609,7 +609,7 @@ func (s *interim) writeStoredFields() (
 		}
 
 		metaBytes := s.metaBuf.Bytes()
-		docStoredOffsets[docNum] = docChunkCoder.BufferSize()
+		docStoredOffsets[docNum] = docChunkCoder.Size()
 		_, err = docChunkCoder.Add(uint64(docNum), metaBytes, data)
 		if err != nil {
 			return 0, err
@@ -617,10 +617,6 @@ func (s *interim) writeStoredFields() (
 	}
 
 	// document chunk coder
-	err = docChunkCoder.Close()
-	if err != nil {
-		return 0, err
-	}
 	err = docChunkCoder.Write()
 	if err != nil {
 		return 0, err

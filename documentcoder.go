@@ -86,6 +86,10 @@ func (c *chunkedDocumentCoder) flush() error {
 }
 
 func (c *chunkedDocumentCoder) Write() error {
+	// flush first
+	if err := c.flush(); err != nil {
+		return err
+	}
 	var err error
 	var wn, n int
 	// write chunk offsets
@@ -109,12 +113,6 @@ func (c *chunkedDocumentCoder) Write() error {
 	return nil
 }
 
-// Close indicates you are done calling Add() this allows
-// the final chunk to be encoded.
-func (c *chunkedDocumentCoder) Close() error {
-	return c.flush()
-}
-
 func (c *chunkedDocumentCoder) Reset() {
 	c.compressed = c.compressed[:0]
 	c.offsets = c.offsets[:0]
@@ -123,8 +121,8 @@ func (c *chunkedDocumentCoder) Reset() {
 	c.buf.Reset()
 }
 
-// BufferSize returns buffer len
-func (c *chunkedDocumentCoder) BufferSize() uint64 {
+// Size returns buffer size of current chunk
+func (c *chunkedDocumentCoder) Size() uint64 {
 	return uint64(c.buf.Len())
 }
 

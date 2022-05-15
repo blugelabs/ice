@@ -52,7 +52,6 @@ func TestChunkedDocumentCoder(t *testing.T) {
 				t.Fatalf("error adding to documentcoder: %v", err)
 			}
 		}
-		_ = cic.Close()
 		err := cic.Write()
 		if err != nil {
 			t.Fatalf("error writing: %v", err)
@@ -103,8 +102,6 @@ func TestChunkedDocumentCoders(t *testing.T) {
 			t.Fatalf("error adding to documentcoder: %v", err)
 		}
 	}
-	_ = cic1.Close()
-	_ = cic2.Close()
 
 	err := cic1.Write()
 	if err != nil {
