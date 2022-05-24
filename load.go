@@ -154,13 +154,13 @@ func (s *Segment) loadStoredFieldChunk() error {
 	chunkOffsetPos -= int(chunkOffsetsLen)
 	var offset, read int
 	var offsetata []byte
-	s.storedFieldChunkOffset = make(map[int]uint64, chunkNum)
+	s.storedFieldChunkOffsets = make([]uint64, chunkNum)
 	for i := 0; i < int(chunkNum); i++ {
 		offsetata, err = s.data.Read(chunkOffsetPos+offset, chunkOffsetPos+offset+binary.MaxVarintLen64)
 		if err != nil {
 			return err
 		}
-		s.storedFieldChunkOffset[i], read = binary.Uvarint(offsetata)
+		s.storedFieldChunkOffsets[i], read = binary.Uvarint(offsetata)
 		offset += read
 	}
 

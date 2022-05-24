@@ -130,3 +130,10 @@ func (c *chunkedDocumentCoder) Size() uint64 {
 func (c *chunkedDocumentCoder) Len() int {
 	return len(c.offsets)
 }
+
+// Len returns chunks num
+func (c *chunkedDocumentCoder) Offsets() []uint64 {
+	m := make([]uint64, 0, len(c.offsets))
+	m = append(m, c.offsets...)
+	return m
+}

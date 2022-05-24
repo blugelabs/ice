@@ -40,8 +40,8 @@ type Segment struct {
 	fieldDocs  map[uint16]uint64 // fieldID -> # docs with value in field
 	fieldFreqs map[uint16]uint64 // fieldID -> # total tokens in field
 
-	storedFieldChunkOffset       map[int]uint64 // stored field chunk offset
-	storedFieldChunkUncompressed []byte         // for uncompress cache
+	storedFieldChunkOffsets      []uint64 // stored field chunk offset
+	storedFieldChunkUncompressed []byte   // for uncompress cache
 
 	dictLocs       []uint64
 	fieldDvReaders map[uint16]*docValueReader // naive chunk cache per field

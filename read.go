@@ -36,9 +36,9 @@ func (s *Segment) getDocStoredOffsets(docNum uint64) (indexOffset, storedOffset,
 	}
 
 	// document chunk coder
-	trunI := docNum / uint64(defaultDocumentChunkSize)
-	chunkOffsetStart := s.storedFieldChunkOffset[int(trunI)]
-	chunkOffsetEnd := s.storedFieldChunkOffset[int(trunI)+1]
+	thunkI := docNum / uint64(defaultDocumentChunkSize)
+	chunkOffsetStart := s.storedFieldChunkOffsets[int(thunkI)]
+	chunkOffsetEnd := s.storedFieldChunkOffsets[int(thunkI)+1]
 	compressed, err := s.data.Read(int(chunkOffsetStart), int(chunkOffsetEnd))
 	if err != nil {
 		return 0, 0, 0, 0, 0, err
