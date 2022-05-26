@@ -249,7 +249,7 @@ type interimLoc struct {
 	end     uint64
 }
 
-func (s *interim) convert() (*footer, []uint64, []uint64, error) {
+func (s *interim) convert() (f *footer, dictOffsets, storedFieldChunkOffsets []uint64, err error) {
 	s.FieldsMap = map[string]uint16{}
 	s.FieldDocs = map[uint16]uint64{}
 	s.FieldFreqs = map[uint16]uint64{}
@@ -284,13 +284,13 @@ func (s *interim) convert() (*footer, []uint64, []uint64, error) {
 
 	s.processDocuments()
 
-	storedIndexOffset, storedFieldChunkOffsets, err := s.writeStoredFields()
+	var storedIndexOffset uint64
+	storedIndexOffset, storedFieldChunkOffsets, err = s.writeStoredFields()
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	var fdvIndexOffset uint64
-	var dictOffsets []uint64
 
 	if len(s.results) > 0 {
 		fdvIndexOffset, dictOffsets, err = s.writeDicts()
