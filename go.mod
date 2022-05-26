@@ -1,4 +1,4 @@
-module github.com/blugelabs/ice
+module github.com/blugelabs/ice/v2
 
 go 1.16
 

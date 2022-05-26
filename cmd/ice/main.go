@@ -15,7 +15,7 @@
 package main
 
 import (
-	"github.com/blugelabs/ice/cmd/ice/cmd"
+	"github.com/blugelabs/ice/v2/cmd/ice/cmd"
 )
 
 func main() {
