@@ -40,8 +40,7 @@ type Segment struct {
 	fieldDocs  map[uint16]uint64 // fieldID -> # docs with value in field
 	fieldFreqs map[uint16]uint64 // fieldID -> # total tokens in field
 
-	storedFieldChunkOffsets      []uint64 // stored field chunk offset
-	storedFieldChunkUncompressed []byte   // for uncompress cache
+	storedFieldChunkOffsets []uint64 // stored field chunk offset
 
 	dictLocs       []uint64
 	fieldDvReaders map[uint16]*docValueReader // naive chunk cache per field
@@ -49,8 +48,9 @@ type Segment struct {
 	size           uint64
 
 	// state loaded dynamically
-	m         sync.Mutex
-	fieldFSTs map[uint16]*vellum.FST
+	m                             sync.Mutex
+	fieldFSTs                     map[uint16]*vellum.FST
+	decompressedStoredFieldChunks map[uint64][]byte
 }
 
 func (s *Segment) WriteTo(w io.Writer, _ chan struct{}) (int64, error) {

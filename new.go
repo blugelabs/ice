@@ -88,16 +88,17 @@ func initSegmentBase(mem []byte, footer *footer,
 	fieldsDocs, fieldsFreqs map[uint16]uint64,
 	dictLocs []uint64, storedFieldChunkOffsets []uint64) (*Segment, error) {
 	sb := &Segment{
-		data:                    segment.NewDataBytes(mem),
-		footer:                  footer,
-		fieldsMap:               fieldsMap,
-		fieldsInv:               fieldsInv,
-		fieldDocs:               fieldsDocs,
-		fieldFreqs:              fieldsFreqs,
-		dictLocs:                dictLocs,
-		fieldDvReaders:          make(map[uint16]*docValueReader),
-		fieldFSTs:               make(map[uint16]*vellum.FST),
-		storedFieldChunkOffsets: storedFieldChunkOffsets,
+		data:                          segment.NewDataBytes(mem),
+		footer:                        footer,
+		fieldsMap:                     fieldsMap,
+		fieldsInv:                     fieldsInv,
+		fieldDocs:                     fieldsDocs,
+		fieldFreqs:                    fieldsFreqs,
+		dictLocs:                      dictLocs,
+		fieldDvReaders:                make(map[uint16]*docValueReader),
+		fieldFSTs:                     make(map[uint16]*vellum.FST),
+		decompressedStoredFieldChunks: make(map[uint64][]byte),
+		storedFieldChunkOffsets:       storedFieldChunkOffsets,
 	}
 	sb.updateSize()
 
