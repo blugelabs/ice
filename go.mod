@@ -1,6 +1,6 @@
 module github.com/blugelabs/ice
 
-go 1.12
+go 1.16
 
 require (
 	github.com/RoaringBitmap/roaring v0.9.4
