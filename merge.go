@@ -784,10 +784,18 @@ func (s *Segment) copyStoredDocs(newDocNum uint64, newDocNumOffsets []uint64, do
 		n := 0
 		for storedOffset < len(uncompressed) {
 			n = 0
-			metaLenData := uncompressed[storedOffset : storedOffset+int(binary.MaxVarintLen64)]
+			metaDataLenEnd := storedOffset + binary.MaxVarintLen64
+			if metaDataLenEnd > cap(uncompressed) {
+				metaDataLenEnd = cap(uncompressed)
+			}
+			metaLenData := uncompressed[storedOffset:metaDataLenEnd]
 			metaLen, read := binary.Uvarint(metaLenData)
 			n += read
-			dataLenData := uncompressed[storedOffset+n : storedOffset+n+int(binary.MaxVarintLen64)]
+			dataLenEnd := storedOffset + n + binary.MaxVarintLen64
+			if dataLenEnd > cap(uncompressed) {
+				dataLenEnd = cap(uncompressed)
+			}
+			dataLenData := uncompressed[storedOffset+n : dataLenEnd]
 			dataLen, read := binary.Uvarint(dataLenData)
 			n += read
 			newDocNumOffsets[newDocNum] = docChunkCoder.Size()
