@@ -26,9 +26,9 @@ import (
 	segment "github.com/blugelabs/bluge_segment_api"
 )
 
-var newSegmentBufferNumResultsBump int = 100
-var newSegmentBufferNumResultsFactor float64 = 1.0
-var newSegmentBufferAvgBytesPerDocFactor float64 = 1.0
+var newSegmentBufferNumResultsBump = 100
+var newSegmentBufferNumResultsFactor = 1.0
+var newSegmentBufferAvgBytesPerDocFactor = 1.0
 
 // New creates an in-memory implementation
 // of a segment for the source documents
