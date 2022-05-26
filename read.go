@@ -14,57 +14,55 @@
 
 package ice
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+)
 
-func (s *Segment) getDocStoredMetaAndCompressed(docNum uint64) (meta, data []byte, err error) {
+func (s *Segment) getDocStoredMetaAndUnCompressed(docNum uint64) (meta, data []byte, err error) {
 	_, storedOffset, n, metaLen, dataLen, err := s.getDocStoredOffsets(docNum)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	meta, err = s.data.Read(int(storedOffset+n), int(storedOffset+n+metaLen))
-	if err != nil {
-		return nil, nil, err
-	}
-	data, err = s.data.Read(int(storedOffset+n+metaLen), int(storedOffset+n+metaLen+dataLen))
-	if err != nil {
-		return nil, nil, err
-	}
-
+	meta = s.storedFieldChunkUncompressed[int(storedOffset+n):int(storedOffset+n+metaLen)]
+	data = s.storedFieldChunkUncompressed[int(storedOffset+n+metaLen):int(storedOffset+n+metaLen+dataLen)]
 	return meta, data, nil
 }
 
-func (s *Segment) getDocStoredOffsets(docNum uint64) (
-	indexOffset, storedOffset, n, metaLen, dataLen uint64, err error) {
-	indexOffset = s.footer.storedIndexOffset + (fileAddrWidth * docNum)
-
-	storedOffsetData, err := s.data.Read(int(indexOffset), int(indexOffset+fileAddrWidth))
+func (s *Segment) getDocStoredOffsets(docNum uint64) (indexOffset, storedOffset, n, metaLen, dataLen uint64, err error) {
+	indexOffset, storedOffset, err = s.getDocStoredOffsetsOnly(docNum)
 	if err != nil {
 		return 0, 0, 0, 0, 0, err
 	}
-	storedOffset = binary.BigEndian.Uint64(storedOffsetData)
 
-	metaLenData, err := s.data.Read(int(storedOffset), int(storedOffset+binary.MaxVarintLen64))
+	// document chunk coder
+	chunkI := docNum / uint64(defaultDocumentChunkSize)
+	chunkOffsetStart := s.storedFieldChunkOffsets[int(chunkI)]
+	chunkOffsetEnd := s.storedFieldChunkOffsets[int(chunkI)+1]
+	compressed, err := s.data.Read(int(chunkOffsetStart), int(chunkOffsetEnd))
 	if err != nil {
 		return 0, 0, 0, 0, 0, err
 	}
+	s.storedFieldChunkUncompressed = s.storedFieldChunkUncompressed[:0]
+	s.storedFieldChunkUncompressed, err = ZSTDDecompress(s.storedFieldChunkUncompressed[:cap(s.storedFieldChunkUncompressed)], compressed)
+	if err != nil {
+		return 0, 0, 0, 0, 0, err
+	}
+
+	metaLenData := s.storedFieldChunkUncompressed[int(storedOffset):int(storedOffset+binary.MaxVarintLen64)]
 	var read int
 	metaLen, read = binary.Uvarint(metaLenData)
 	n += uint64(read)
 
-	dataLenData, err := s.data.Read(int(storedOffset+n), int(storedOffset+n+binary.MaxVarintLen64))
-	if err != nil {
-		return 0, 0, 0, 0, 0, err
-	}
+	dataLenData := s.storedFieldChunkUncompressed[int(storedOffset+n):int(storedOffset+n+binary.MaxVarintLen64)]
 	dataLen, read = binary.Uvarint(dataLenData)
 	n += uint64(read)
 
 	return indexOffset, storedOffset, n, metaLen, dataLen, nil
 }
 
-func (s *Segment) getDocStoredOffsetsOnly(docNum int) (indexOffset, storedOffset uint64, err error) {
-	indexOffset = s.footer.storedIndexOffset + (fileAddrWidth * uint64(docNum))
-
+func (s *Segment) getDocStoredOffsetsOnly(docNum uint64) (indexOffset, storedOffset uint64, err error) {
+	indexOffset = s.footer.storedIndexOffset + (fileAddrWidth * docNum)
 	storedOffsetData, err := s.data.Read(int(indexOffset), int(indexOffset+fileAddrWidth))
 	if err != nil {
 		return 0, 0, err

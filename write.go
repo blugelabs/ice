@@ -90,7 +90,11 @@ func writePostings(postings *roaring.Bitmap, tfEncoder, locEncoder *chunkedIntCo
 		return 0, err
 	}
 
-	n = binary.PutUvarint(bufMaxVarintLen64, locOffset)
+	if locOffset > 0 && tfOffset > 0 {
+		n = binary.PutUvarint(bufMaxVarintLen64, locOffset-tfOffset)
+	} else {
+		n = binary.PutUvarint(bufMaxVarintLen64, locOffset)
+	}
 	_, err = w.Write(bufMaxVarintLen64[:n])
 	if err != nil {
 		return 0, err
@@ -127,6 +131,7 @@ func numUvarintBytes(x uint64) (n int) {
 // then writes out the roaring bitmap itself
 func writeRoaringWithLen(r *roaring.Bitmap, w io.Writer,
 	reuseBufVarint []byte) (int, error) {
+	r.RunOptimize()
 	buf, err := r.ToBytes()
 	if err != nil {
 		return 0, err

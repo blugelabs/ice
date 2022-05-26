@@ -33,7 +33,8 @@ type chunkedIntCoder struct {
 	chunkLens []uint64
 	currChunk uint64
 
-	buf []byte
+	buf        []byte
+	compressed []byte
 }
 
 // newChunkedIntCoder returns a new chunk int coder which packs data into
@@ -101,11 +102,16 @@ func (c *chunkedIntCoder) Add(docNum uint64, vals ...uint64) error {
 
 // Close indicates you are done calling Add() this allows the final chunk
 // to be encoded.
-func (c *chunkedIntCoder) Close() {
-	encodingBytes := c.chunkBuf.Bytes()
-	c.chunkLens[c.currChunk] = uint64(len(encodingBytes))
-	c.final = append(c.final, encodingBytes...)
+func (c *chunkedIntCoder) Close() error {
+	var err error
+	c.compressed, err = ZSTDCompress(c.compressed[:cap(c.compressed)], c.chunkBuf.Bytes(), ZSTDCompressionLevel)
+	if err != nil {
+		return err
+	}
+	c.chunkLens[c.currChunk] = uint64(len(c.compressed))
+	c.final = append(c.final, c.compressed...)
 	c.currChunk = uint64(cap(c.chunkLens)) // sentinel to detect double close
+	return nil
 }
 
 // Write commits all the encoded chunked integers to the provided writer.

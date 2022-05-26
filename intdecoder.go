@@ -26,6 +26,7 @@ type chunkedIntDecoder struct {
 	dataStartOffset uint64
 	chunkOffsets    []uint64
 	curChunkBytes   []byte
+	uncompressed    []byte // temp buf for decompression
 	data            *segment.Data
 	r               *memUvarintReader
 }
@@ -86,7 +87,11 @@ func (d *chunkedIntDecoder) loadChunk(chunk int) error {
 	if err != nil {
 		return err
 	}
-	d.curChunkBytes = curChunkBytesData
+	d.uncompressed, err = ZSTDDecompress(d.uncompressed[:cap(d.uncompressed)], curChunkBytesData)
+	if err != nil {
+		return err
+	}
+	d.curChunkBytes = d.uncompressed
 	if d.r == nil {
 		d.r = newMemUvarintReader(d.curChunkBytes)
 	} else {
@@ -101,6 +106,7 @@ func (d *chunkedIntDecoder) reset() {
 	d.dataStartOffset = 0
 	d.chunkOffsets = d.chunkOffsets[:0]
 	d.curChunkBytes = d.curChunkBytes[:0]
+	d.uncompressed = d.uncompressed[:0]
 
 	// FIXME what?
 	// d.data = d.data[:0]
