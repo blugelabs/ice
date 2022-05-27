@@ -48,7 +48,7 @@ type Segment struct {
 	size           uint64
 
 	// state loaded dynamically
-	m                             sync.Mutex
+	m                             sync.RWMutex
 	fieldFSTs                     map[uint16]*vellum.FST
 	decompressedStoredFieldChunks map[uint64][]byte
 }

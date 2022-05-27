@@ -26,10 +26,12 @@ func (s *Segment) getDocStoredMetaAndUnCompressed(docNum uint64) (meta, data []b
 
 	// document chunk coder
 	chunkI := docNum / uint64(defaultDocumentChunkSize)
-	s.m.Lock()
 	var storedFieldDecompressed []byte
 	var ok bool
-	if storedFieldDecompressed, ok = s.decompressedStoredFieldChunks[chunkI]; !ok {
+	s.m.RLock()
+	storedFieldDecompressed, ok = s.decompressedStoredFieldChunks[chunkI]
+	s.m.RUnlock()
+	if !ok {
 		// we haven't already loaded and decompressed this chunk
 		chunkOffsetStart := s.storedFieldChunkOffsets[int(chunkI)]
 		chunkOffsetEnd := s.storedFieldChunkOffsets[int(chunkI)+1]
@@ -47,9 +49,10 @@ func (s *Segment) getDocStoredMetaAndUnCompressed(docNum uint64) (meta, data []b
 		}
 
 		// store it
+		s.m.Lock()
 		s.decompressedStoredFieldChunks[chunkI] = storedFieldDecompressed
+		s.m.Unlock()
 	}
-	s.m.Unlock()
 
 	metaLenData := storedFieldDecompressed[int(storedOffset):int(storedOffset+binary.MaxVarintLen64)]
 	var n uint64
