@@ -37,14 +37,12 @@ func (s *Segment) getDocStoredMetaAndUnCompressed(docNum uint64) (meta, data []b
 		chunkOffsetEnd := s.storedFieldChunkOffsets[int(chunkI)+1]
 		compressed, err := s.data.Read(int(chunkOffsetStart), int(chunkOffsetEnd))
 		if err != nil {
-			s.m.Unlock()
 			return nil, nil, err
 		}
 
 		// decompress it
 		storedFieldDecompressed, err = ZSTDDecompress(nil, compressed)
 		if err != nil {
-			s.m.Unlock()
 			return nil, nil, err
 		}
 
