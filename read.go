@@ -26,12 +26,9 @@ func (s *Segment) getDocStoredMetaAndUnCompressed(docNum uint64) (meta, data []b
 
 	// document chunk coder
 	chunkI := docNum / uint64(defaultDocumentChunkSize)
-	var storedFieldDecompressed []byte
-	var ok bool
-	s.m.RLock()
-	storedFieldDecompressed, ok = s.decompressedStoredFieldChunks[chunkI]
-	s.m.RUnlock()
-	if !ok {
+	storedFieldDecompressed := s.decompressedStoredFieldChunks[chunkI]
+	storedFieldDecompressed.m.Lock()
+	if storedFieldDecompressed.data == nil {
 		// we haven't already loaded and decompressed this chunk
 		chunkOffsetStart := s.storedFieldChunkOffsets[int(chunkI)]
 		chunkOffsetEnd := s.storedFieldChunkOffsets[int(chunkI)+1]
@@ -41,28 +38,26 @@ func (s *Segment) getDocStoredMetaAndUnCompressed(docNum uint64) (meta, data []b
 		}
 
 		// decompress it
-		storedFieldDecompressed, err = ZSTDDecompress(nil, compressed)
+		storedFieldDecompressed.data, err = ZSTDDecompress(nil, compressed)
 		if err != nil {
 			return nil, nil, err
 		}
-
-		// store it
-		s.m.Lock()
-		s.decompressedStoredFieldChunks[chunkI] = storedFieldDecompressed
-		s.m.Unlock()
 	}
+	storedFieldDecompressed.m.Unlock()
 
-	metaLenData := storedFieldDecompressed[int(storedOffset):int(storedOffset+binary.MaxVarintLen64)]
+	storedFieldDecompressed.m.RLock()
+	metaLenData := storedFieldDecompressed.data[int(storedOffset):int(storedOffset+binary.MaxVarintLen64)]
 	var n uint64
 	metaLen, read := binary.Uvarint(metaLenData)
 	n += uint64(read)
 
-	dataLenData := storedFieldDecompressed[int(storedOffset+n):int(storedOffset+n+binary.MaxVarintLen64)]
+	dataLenData := storedFieldDecompressed.data[int(storedOffset+n):int(storedOffset+n+binary.MaxVarintLen64)]
 	dataLen, read := binary.Uvarint(dataLenData)
 	n += uint64(read)
 
-	meta = storedFieldDecompressed[int(storedOffset+n):int(storedOffset+n+metaLen)]
-	data = storedFieldDecompressed[int(storedOffset+n+metaLen):int(storedOffset+n+metaLen+dataLen)]
+	meta = storedFieldDecompressed.data[int(storedOffset+n):int(storedOffset+n+metaLen)]
+	data = storedFieldDecompressed.data[int(storedOffset+n+metaLen):int(storedOffset+n+metaLen+dataLen)]
+	storedFieldDecompressed.m.RUnlock()
 	return meta, data, nil
 }
 

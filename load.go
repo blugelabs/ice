@@ -33,14 +33,13 @@ func load(data *segment.Data) (*Segment, error) {
 		return nil, fmt.Errorf("error parsing footer: %w", err)
 	}
 	rv := &Segment{
-		data:                          data.Slice(0, data.Len()-footerLen),
-		footer:                        footer,
-		fieldsMap:                     make(map[string]uint16),
-		fieldDvReaders:                make(map[uint16]*docValueReader),
-		fieldFSTs:                     make(map[uint16]*vellum.FST),
-		decompressedStoredFieldChunks: make(map[uint64][]byte),
-		fieldDocs:                     make(map[uint16]uint64),
-		fieldFreqs:                    make(map[uint16]uint64),
+		data:           data.Slice(0, data.Len()-footerLen),
+		footer:         footer,
+		fieldsMap:      make(map[string]uint16),
+		fieldDvReaders: make(map[uint16]*docValueReader),
+		fieldFSTs:      make(map[uint16]*vellum.FST),
+		fieldDocs:      make(map[uint16]uint64),
+		fieldFreqs:     make(map[uint16]uint64),
 	}
 
 	// FIXME temporarily map to existing footer fields
@@ -60,6 +59,7 @@ func load(data *segment.Data) (*Segment, error) {
 	if err != nil {
 		return nil, err
 	}
+	rv.decompressedStoredFieldChunks = make(map[uint64]segmentCacheData, len(rv.storedFieldChunkOffsets))
 
 	err = rv.loadDvReaders()
 	if err != nil {

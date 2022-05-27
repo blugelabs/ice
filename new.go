@@ -97,7 +97,7 @@ func initSegmentBase(mem []byte, footer *footer,
 		dictLocs:                      dictLocs,
 		fieldDvReaders:                make(map[uint16]*docValueReader),
 		fieldFSTs:                     make(map[uint16]*vellum.FST),
-		decompressedStoredFieldChunks: make(map[uint64][]byte),
+		decompressedStoredFieldChunks: make(map[uint64]segmentCacheData, len(storedFieldChunkOffsets)),
 		storedFieldChunkOffsets:       storedFieldChunkOffsets,
 	}
 	sb.updateSize()

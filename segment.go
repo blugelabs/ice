@@ -50,7 +50,12 @@ type Segment struct {
 	// state loaded dynamically
 	m                             sync.RWMutex
 	fieldFSTs                     map[uint16]*vellum.FST
-	decompressedStoredFieldChunks map[uint64][]byte
+	decompressedStoredFieldChunks map[uint64]segmentCacheData
+}
+
+type segmentCacheData struct {
+	data []byte
+	m    sync.RWMutex
 }
 
 func (s *Segment) WriteTo(w io.Writer, _ chan struct{}) (int64, error) {
