@@ -18,6 +18,15 @@ import (
 	"encoding/binary"
 )
 
+func (s *Segment) initDecompressedStoredFieldChunks(n int) {
+	s.m.Lock()
+	s.decompressedStoredFieldChunks = make(map[uint32]*segmentCacheData, n)
+	for i := uint32(0); i < uint32(n); i++ {
+		s.decompressedStoredFieldChunks[i] = &segmentCacheData{}
+	}
+	s.m.Unlock()
+}
+
 func (s *Segment) getDocStoredMetaAndUnCompressed(docNum uint64) (meta, data []byte, err error) {
 	_, storedOffset, err := s.getDocStoredOffsetsOnly(docNum)
 	if err != nil {
@@ -25,7 +34,8 @@ func (s *Segment) getDocStoredMetaAndUnCompressed(docNum uint64) (meta, data []b
 	}
 
 	// document chunk coder
-	chunkI := docNum / uint64(defaultDocumentChunkSize)
+	var uncompressed []byte
+	chunkI := uint32(docNum) / defaultDocumentChunkSize
 	storedFieldDecompressed := s.decompressedStoredFieldChunks[chunkI]
 	storedFieldDecompressed.m.Lock()
 	if storedFieldDecompressed.data == nil {
@@ -43,21 +53,21 @@ func (s *Segment) getDocStoredMetaAndUnCompressed(docNum uint64) (meta, data []b
 			return nil, nil, err
 		}
 	}
+	// once initialized it wouldn't change, so we can unlock the mutex
+	uncompressed = storedFieldDecompressed.data
 	storedFieldDecompressed.m.Unlock()
 
-	storedFieldDecompressed.m.RLock()
-	metaLenData := storedFieldDecompressed.data[int(storedOffset):int(storedOffset+binary.MaxVarintLen64)]
+	metaLenData := uncompressed[int(storedOffset):int(storedOffset+binary.MaxVarintLen64)]
 	var n uint64
 	metaLen, read := binary.Uvarint(metaLenData)
 	n += uint64(read)
 
-	dataLenData := storedFieldDecompressed.data[int(storedOffset+n):int(storedOffset+n+binary.MaxVarintLen64)]
+	dataLenData := uncompressed[int(storedOffset+n):int(storedOffset+n+binary.MaxVarintLen64)]
 	dataLen, read := binary.Uvarint(dataLenData)
 	n += uint64(read)
 
-	meta = storedFieldDecompressed.data[int(storedOffset+n):int(storedOffset+n+metaLen)]
-	data = storedFieldDecompressed.data[int(storedOffset+n+metaLen):int(storedOffset+n+metaLen+dataLen)]
-	storedFieldDecompressed.m.RUnlock()
+	meta = uncompressed[int(storedOffset+n):int(storedOffset+n+metaLen)]
+	data = uncompressed[int(storedOffset+n+metaLen):int(storedOffset+n+metaLen+dataLen)]
 	return meta, data, nil
 }
 

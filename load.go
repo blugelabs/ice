@@ -59,7 +59,8 @@ func load(data *segment.Data) (*Segment, error) {
 	if err != nil {
 		return nil, err
 	}
-	rv.decompressedStoredFieldChunks = make(map[uint64]segmentCacheData, len(rv.storedFieldChunkOffsets))
+
+	rv.initDecompressedStoredFieldChunks(len(rv.storedFieldChunkOffsets))
 
 	err = rv.loadDvReaders()
 	if err != nil {

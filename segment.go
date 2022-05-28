@@ -50,7 +50,7 @@ type Segment struct {
 	// state loaded dynamically
 	m                             sync.RWMutex
 	fieldFSTs                     map[uint16]*vellum.FST
-	decompressedStoredFieldChunks map[uint64]segmentCacheData
+	decompressedStoredFieldChunks map[uint32]*segmentCacheData
 }
 
 type segmentCacheData struct {

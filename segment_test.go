@@ -571,7 +571,13 @@ func TestSegmentConcurrency(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
-			_, _, _ = seg.getDocStoredMetaAndUnCompressed(0)
+			meta, data, err := seg.getDocStoredMetaAndUnCompressed(0)
+			if err != nil {
+				t.Errorf("getDocStoredMetaAndUnCompressed err: %v", err)
+			}
+			if meta == nil || data == nil {
+				t.Errorf("getDocStoredMetaAndUnCompressed meta or data should not be nil")
+			}
 			wg.Done()
 		}()
 	}
