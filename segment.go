@@ -25,10 +25,9 @@ import (
 	"github.com/RoaringBitmap/roaring"
 	"github.com/blevesearch/vellum"
 	segment "github.com/blugelabs/bluge_segment_api"
-	"github.com/golang/snappy"
 )
 
-const Version uint32 = 1
+const Version uint32 = 2
 
 const Type string = "ice"
 
@@ -40,6 +39,9 @@ type Segment struct {
 	fieldsInv  []string          // fieldID -> fieldName
 	fieldDocs  map[uint16]uint64 // fieldID -> # docs with value in field
 	fieldFreqs map[uint16]uint64 // fieldID -> # total tokens in field
+
+	storedFieldChunkOffsets      []uint64 // stored field chunk offset
+	storedFieldChunkUncompressed []byte   // for uncompress cache
 
 	dictLocs       []uint64
 	fieldDvReaders map[uint16]*docValueReader // naive chunk cache per field
@@ -192,17 +194,12 @@ func (s *Segment) visitDocument(vdc *visitDocumentCtx, num uint64,
 	visitor segment.StoredFieldVisitor) error {
 	// first make sure this is a valid number in this segment
 	if num < s.footer.numDocs {
-		meta, compressed, err := s.getDocStoredMetaAndCompressed(num)
+		meta, uncompressed, err := s.getDocStoredMetaAndUnCompressed(num)
 		if err != nil {
 			return err
 		}
 
 		vdc.reader.Reset(meta)
-
-		uncompressed, err := snappy.Decode(vdc.buf[:cap(vdc.buf)], compressed)
-		if err != nil {
-			return err
-		}
 
 		var keepGoing = true
 		for keepGoing {

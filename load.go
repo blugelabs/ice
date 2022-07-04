@@ -55,6 +55,11 @@ func load(data *segment.Data) (*Segment, error) {
 		return nil, err
 	}
 
+	err = rv.loadStoredFieldChunk()
+	if err != nil {
+		return nil, err
+	}
+
 	err = rv.loadDvReaders()
 	if err != nil {
 		return nil, err
@@ -126,5 +131,38 @@ func (s *Segment) loadFields() error {
 
 		fieldID++
 	}
+	return nil
+}
+
+// loadStoredFieldChunk load storedField chunk offsets
+func (s *Segment) loadStoredFieldChunk() error {
+	// read chunk num
+	chunkOffsetPos := int(s.footer.storedIndexOffset - uint64(sizeOfUint32))
+	chunkData, err := s.data.Read(chunkOffsetPos, chunkOffsetPos+sizeOfUint32)
+	if err != nil {
+		return err
+	}
+	chunkNum := binary.BigEndian.Uint32(chunkData)
+	chunkOffsetPos -= sizeOfUint32
+	// read chunk offsets length
+	chunkData, err = s.data.Read(chunkOffsetPos, chunkOffsetPos+sizeOfUint32)
+	if err != nil {
+		return err
+	}
+	chunkOffsetsLen := binary.BigEndian.Uint32(chunkData)
+	// read chunk offsets
+	chunkOffsetPos -= int(chunkOffsetsLen)
+	var offset, read int
+	var offsetata []byte
+	s.storedFieldChunkOffsets = make([]uint64, chunkNum)
+	for i := 0; i < int(chunkNum); i++ {
+		offsetata, err = s.data.Read(chunkOffsetPos+offset, chunkOffsetPos+offset+binary.MaxVarintLen64)
+		if err != nil {
+			return err
+		}
+		s.storedFieldChunkOffsets[i], read = binary.Uvarint(offsetata)
+		offset += read
+	}
+
 	return nil
 }

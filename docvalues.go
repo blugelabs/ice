@@ -22,7 +22,6 @@ import (
 	"sort"
 
 	segment "github.com/blugelabs/bluge_segment_api"
-	"github.com/golang/snappy"
 )
 
 type docNumTermsVisitor func(docNum uint64, terms []byte) error
@@ -39,7 +38,7 @@ type docValueReader struct {
 	dvDataLoc      uint64
 	curChunkHeader []metaData
 	curChunkData   []byte // compressed data cache
-	uncompressed   []byte // temp buf for snappy decompression
+	uncompressed   []byte // temp buf for decompression
 }
 
 func (di *docValueReader) size() int {
@@ -163,6 +162,9 @@ func (di *docValueReader) loadDvChunk(chunkNumber uint64, s *Segment) error {
 	} else {
 		di.curChunkHeader = di.curChunkHeader[:int(numDocs)]
 	}
+
+	diffDocNum := uint64(0)
+	diffDvOffset := uint64(0)
 	for i := 0; i < int(numDocs); i++ {
 		var docNumData []byte
 		docNumData, err = s.data.Read(int(chunkMetaLoc+offset), int(chunkMetaLoc+offset+binary.MaxVarintLen64))
@@ -170,6 +172,8 @@ func (di *docValueReader) loadDvChunk(chunkNumber uint64, s *Segment) error {
 			return err
 		}
 		di.curChunkHeader[i].DocNum, read = binary.Uvarint(docNumData)
+		di.curChunkHeader[i].DocNum += diffDocNum
+		diffDocNum = di.curChunkHeader[i].DocNum
 		offset += uint64(read)
 		var docDvOffsetData []byte
 		docDvOffsetData, err = s.data.Read(int(chunkMetaLoc+offset), int(chunkMetaLoc+offset+binary.MaxVarintLen64))
@@ -177,6 +181,8 @@ func (di *docValueReader) loadDvChunk(chunkNumber uint64, s *Segment) error {
 			return err
 		}
 		di.curChunkHeader[i].DocDvOffset, read = binary.Uvarint(docDvOffsetData)
+		di.curChunkHeader[i].DocDvOffset += diffDvOffset
+		diffDvOffset = di.curChunkHeader[i].DocDvOffset
 		offset += uint64(read)
 	}
 
@@ -203,7 +209,7 @@ func (di *docValueReader) iterateAllDocValues(s *Segment, visitor docNumTermsVis
 		}
 
 		// uncompress the already loaded data
-		uncompressed, err := snappy.Decode(di.uncompressed[:cap(di.uncompressed)], di.curChunkData)
+		uncompressed, err := ZSTDDecompress(di.uncompressed[:cap(di.uncompressed)], di.curChunkData)
 		if err != nil {
 			return err
 		}
@@ -238,7 +244,7 @@ func (di *docValueReader) visitDocValues(docNum uint64,
 		uncompressed = di.uncompressed
 	} else {
 		// uncompress the already loaded data
-		uncompressed, err = snappy.Decode(di.uncompressed[:cap(di.uncompressed)], di.curChunkData)
+		uncompressed, err = ZSTDDecompress(di.uncompressed[:cap(di.uncompressed)], di.curChunkData)
 		if err != nil {
 			return err
 		}

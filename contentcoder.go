@@ -18,8 +18,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
-
-	"github.com/golang/snappy"
 )
 
 var termSeparator byte = 0xff
@@ -39,7 +37,7 @@ type chunkedContentCoder struct {
 
 	chunkMeta []metaData
 
-	compressed []byte // temp buf for snappy compression
+	compressed []byte // temp buf for compression
 }
 
 // metaData represents the data information inside a
@@ -107,18 +105,25 @@ func (c *chunkedContentCoder) flushContents() error {
 	}
 
 	// write out the metaData slice
+	diffDocNum := uint64(0)
+	diffDvOffset := uint64(0)
 	for _, meta := range c.chunkMeta {
-		err := writeUvarints(&c.chunkMetaBuf, meta.DocNum, meta.DocDvOffset)
+		err = writeUvarints(&c.chunkMetaBuf, meta.DocNum-diffDocNum, meta.DocDvOffset-diffDvOffset)
 		if err != nil {
 			return err
 		}
+		diffDocNum = meta.DocNum
+		diffDvOffset = meta.DocDvOffset
 	}
 
 	// write the metadata to final data
 	metaData := c.chunkMetaBuf.Bytes()
 	c.final = append(c.final, c.chunkMetaBuf.Bytes()...)
 	// write the compressed data to the final data
-	c.compressed = snappy.Encode(c.compressed[:cap(c.compressed)], c.chunkBuf.Bytes())
+	c.compressed, err = ZSTDCompress(c.compressed[:cap(c.compressed)], c.chunkBuf.Bytes(), ZSTDCompressionLevel)
+	if err != nil {
+		return err
+	}
 	c.final = append(c.final, c.compressed...)
 
 	c.chunkLens[c.currChunk] = uint64(len(c.compressed) + len(metaData))

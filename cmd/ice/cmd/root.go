@@ -22,7 +22,7 @@ import (
 	"github.com/blevesearch/mmap-go"
 	segment "github.com/blugelabs/bluge_segment_api"
 
-	"github.com/blugelabs/ice"
+	"github.com/blugelabs/ice/v2"
 	"github.com/spf13/cobra"
 )
 

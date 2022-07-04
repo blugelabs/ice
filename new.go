@@ -24,12 +24,11 @@ import (
 	"github.com/RoaringBitmap/roaring"
 	"github.com/blevesearch/vellum"
 	segment "github.com/blugelabs/bluge_segment_api"
-	"github.com/golang/snappy"
 )
 
-var newSegmentBufferNumResultsBump int = 100
-var newSegmentBufferNumResultsFactor float64 = 1.0
-var newSegmentBufferAvgBytesPerDocFactor float64 = 1.0
+var newSegmentBufferNumResultsBump = 100
+var newSegmentBufferNumResultsFactor = 1.0
+var newSegmentBufferAvgBytesPerDocFactor = 1.0
 
 // New creates an in-memory implementation
 // of a segment for the source documents
@@ -62,7 +61,7 @@ func newWithChunkMode(results []segment.Document, normCalc func(string, int) flo
 	s.w = newCountHashWriter(&br)
 
 	var footer *footer
-	footer, dictOffsets, err := s.convert()
+	footer, dictOffsets, storedFieldChunkOffsets, err := s.convert()
 	if err != nil {
 		return nil, uint64(0), err
 	}
@@ -73,7 +72,7 @@ func newWithChunkMode(results []segment.Document, normCalc func(string, int) flo
 	sb, err := initSegmentBase(br.Bytes(), footer,
 		s.FieldsMap, s.FieldsInv,
 		s.FieldDocs, s.FieldFreqs,
-		dictOffsets)
+		dictOffsets, storedFieldChunkOffsets)
 
 	if err == nil && s.reset() == nil {
 		s.lastNumDocs = len(results)
@@ -87,17 +86,18 @@ func newWithChunkMode(results []segment.Document, normCalc func(string, int) flo
 func initSegmentBase(mem []byte, footer *footer,
 	fieldsMap map[string]uint16, fieldsInv []string,
 	fieldsDocs, fieldsFreqs map[uint16]uint64,
-	dictLocs []uint64) (*Segment, error) {
+	dictLocs []uint64, storedFieldChunkOffsets []uint64) (*Segment, error) {
 	sb := &Segment{
-		data:           segment.NewDataBytes(mem),
-		footer:         footer,
-		fieldsMap:      fieldsMap,
-		fieldsInv:      fieldsInv,
-		fieldDocs:      fieldsDocs,
-		fieldFreqs:     fieldsFreqs,
-		dictLocs:       dictLocs,
-		fieldDvReaders: make(map[uint16]*docValueReader),
-		fieldFSTs:      make(map[uint16]*vellum.FST),
+		data:                    segment.NewDataBytes(mem),
+		footer:                  footer,
+		fieldsMap:               fieldsMap,
+		fieldsInv:               fieldsInv,
+		fieldDocs:               fieldsDocs,
+		fieldFreqs:              fieldsFreqs,
+		dictLocs:                dictLocs,
+		fieldDvReaders:          make(map[uint16]*docValueReader),
+		fieldFSTs:               make(map[uint16]*vellum.FST),
+		storedFieldChunkOffsets: storedFieldChunkOffsets,
 	}
 	sb.updateSize()
 
@@ -249,7 +249,7 @@ type interimLoc struct {
 	end     uint64
 }
 
-func (s *interim) convert() (*footer, []uint64, error) {
+func (s *interim) convert() (f *footer, dictOffsets, storedFieldChunkOffsets []uint64, err error) {
 	s.FieldsMap = map[string]uint16{}
 	s.FieldDocs = map[uint16]uint64{}
 	s.FieldFreqs = map[uint16]uint64{}
@@ -284,18 +284,18 @@ func (s *interim) convert() (*footer, []uint64, error) {
 
 	s.processDocuments()
 
-	storedIndexOffset, err := s.writeStoredFields()
+	var storedIndexOffset uint64
+	storedIndexOffset, storedFieldChunkOffsets, err = s.writeStoredFields()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	var fdvIndexOffset uint64
-	var dictOffsets []uint64
 
 	if len(s.results) > 0 {
 		fdvIndexOffset, dictOffsets, err = s.writeDicts()
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 	} else {
 		dictOffsets = make([]uint64, len(s.FieldsInv))
@@ -303,7 +303,7 @@ func (s *interim) convert() (*footer, []uint64, error) {
 
 	fieldsIndexOffset, err := persistFields(s.FieldsInv, s.FieldDocs, s.FieldFreqs, s.w, dictOffsets)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	return &footer{
@@ -311,7 +311,7 @@ func (s *interim) convert() (*footer, []uint64, error) {
 		fieldsIndexOffset: fieldsIndexOffset,
 		docValueOffset:    fdvIndexOffset,
 		version:           Version,
-	}, dictOffsets, nil
+	}, dictOffsets, storedFieldChunkOffsets, nil
 }
 
 func (s *interim) getOrDefineField(fieldName string) int {
@@ -553,7 +553,7 @@ func (s *interim) processDocument(docNum uint64,
 }
 
 func (s *interim) writeStoredFields() (
-	storedIndexOffset uint64, err error) {
+	storedIndexOffset uint64, storedFieldChunkOffsets []uint64, err error) {
 	varBuf := make([]byte, binary.MaxVarintLen64)
 	metaEncode := func(val uint64) (int, error) {
 		wb := binary.PutUvarint(varBuf, val)
@@ -568,6 +568,9 @@ func (s *interim) writeStoredFields() (
 
 	// keyed by fieldID, for the current doc in the loop
 	docStoredFields := map[uint16]interimStoredField{}
+
+	// document chunk coder
+	docChunkCoder := newChunkedDocumentCoder(uint64(defaultDocumentChunkSize), s.w)
 
 	for docNum, result := range s.results {
 		for fieldID := range docStoredFields { // reset for next doc
@@ -601,45 +604,36 @@ func (s *interim) writeStoredFields() (
 					fieldID, isf.vals,
 					curr, metaEncode, data)
 				if err != nil {
-					return 0, err
+					return 0, nil, err
 				}
 			}
 		}
 
 		metaBytes := s.metaBuf.Bytes()
-
-		compressed = snappy.Encode(compressed[:cap(compressed)], data)
-
-		docStoredOffsets[docNum] = uint64(s.w.Count())
-
-		err = writeUvarints(s.w,
-			uint64(len(metaBytes)),
-			uint64(len(compressed)))
+		docStoredOffsets[docNum] = docChunkCoder.Size()
+		_, err = docChunkCoder.Add(uint64(docNum), metaBytes, data)
 		if err != nil {
-			return 0, err
-		}
-
-		_, err = s.w.Write(metaBytes)
-		if err != nil {
-			return 0, err
-		}
-
-		_, err = s.w.Write(compressed)
-		if err != nil {
-			return 0, err
+			return 0, nil, err
 		}
 	}
+
+	// document chunk coder
+	err = docChunkCoder.Write()
+	if err != nil {
+		return 0, nil, err
+	}
+	storedFieldChunkOffsets = docChunkCoder.Offsets()
 
 	storedIndexOffset = uint64(s.w.Count())
 
 	for _, docStoredOffset := range docStoredOffsets {
 		err = binary.Write(s.w, binary.BigEndian, docStoredOffset)
 		if err != nil {
-			return 0, err
+			return 0, nil, err
 		}
 	}
 
-	return storedIndexOffset, nil
+	return storedIndexOffset, storedFieldChunkOffsets, nil
 }
 
 func (s *interim) writeDicts() (fdvIndexOffset uint64, dictOffsets []uint64, err error) {
