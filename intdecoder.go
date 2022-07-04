@@ -87,6 +87,9 @@ func (d *chunkedIntDecoder) loadChunk(chunk int) error {
 	if err != nil {
 		return err
 	}
+	if len(curChunkBytesData) == 0 {
+		return nil
+	}
 	d.uncompressed, err = ZSTDDecompress(d.uncompressed[:cap(d.uncompressed)], curChunkBytesData)
 	if err != nil {
 		return err
