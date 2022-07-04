@@ -18,47 +18,66 @@ import (
 	"encoding/binary"
 )
 
+func (s *Segment) initDecompressedStoredFieldChunks(n int) {
+	s.m.Lock()
+	s.decompressedStoredFieldChunks = make(map[uint32]*segmentCacheData, n)
+	for i := uint32(0); i < uint32(n); i++ {
+		s.decompressedStoredFieldChunks[i] = &segmentCacheData{}
+	}
+	s.m.Unlock()
+}
+
 func (s *Segment) getDocStoredMetaAndUnCompressed(docNum uint64) (meta, data []byte, err error) {
-	_, storedOffset, n, metaLen, dataLen, err := s.getDocStoredOffsets(docNum)
+	_, storedOffset, err := s.getDocStoredOffsetsOnly(docNum)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	meta = s.storedFieldChunkUncompressed[int(storedOffset+n):int(storedOffset+n+metaLen)]
-	data = s.storedFieldChunkUncompressed[int(storedOffset+n+metaLen):int(storedOffset+n+metaLen+dataLen)]
-	return meta, data, nil
-}
-
-func (s *Segment) getDocStoredOffsets(docNum uint64) (indexOffset, storedOffset, n, metaLen, dataLen uint64, err error) {
-	indexOffset, storedOffset, err = s.getDocStoredOffsetsOnly(docNum)
-	if err != nil {
-		return 0, 0, 0, 0, 0, err
-	}
-
 	// document chunk coder
-	chunkI := docNum / uint64(defaultDocumentChunkSize)
-	chunkOffsetStart := s.storedFieldChunkOffsets[int(chunkI)]
-	chunkOffsetEnd := s.storedFieldChunkOffsets[int(chunkI)+1]
-	compressed, err := s.data.Read(int(chunkOffsetStart), int(chunkOffsetEnd))
-	if err != nil {
-		return 0, 0, 0, 0, 0, err
-	}
-	s.storedFieldChunkUncompressed = s.storedFieldChunkUncompressed[:0]
-	s.storedFieldChunkUncompressed, err = ZSTDDecompress(s.storedFieldChunkUncompressed[:cap(s.storedFieldChunkUncompressed)], compressed)
-	if err != nil {
-		return 0, 0, 0, 0, 0, err
-	}
+	var uncompressed []byte
+	chunkI := uint32(docNum) / defaultDocumentChunkSize
+	storedFieldDecompressed := s.decompressedStoredFieldChunks[chunkI]
+	storedFieldDecompressed.m.Lock()
+	if storedFieldDecompressed.data == nil {
+		// we haven't already loaded and decompressed this chunk
+		chunkOffsetStart := s.storedFieldChunkOffsets[int(chunkI)]
+		chunkOffsetEnd := s.storedFieldChunkOffsets[int(chunkI)+1]
+		compressed, err := s.data.Read(int(chunkOffsetStart), int(chunkOffsetEnd))
+		if err != nil {
+			return nil, nil, err
+		}
 
-	metaLenData := s.storedFieldChunkUncompressed[int(storedOffset):int(storedOffset+binary.MaxVarintLen64)]
-	var read int
-	metaLen, read = binary.Uvarint(metaLenData)
+		// decompress it
+		storedFieldDecompressed.data, err = ZSTDDecompress(nil, compressed)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	// once initialized it wouldn't change, so we can unlock the mutex
+	uncompressed = storedFieldDecompressed.data
+	storedFieldDecompressed.m.Unlock()
+
+	metaDataLenEnd := storedOffset + binary.MaxVarintLen64
+	if metaDataLenEnd > uint64(len(uncompressed)) {
+		metaDataLenEnd = uint64(len(uncompressed))
+	}
+	metaLenData := uncompressed[storedOffset:metaDataLenEnd]
+
+	var n uint64
+	metaLen, read := binary.Uvarint(metaLenData)
 	n += uint64(read)
 
-	dataLenData := s.storedFieldChunkUncompressed[int(storedOffset+n):int(storedOffset+n+binary.MaxVarintLen64)]
-	dataLen, read = binary.Uvarint(dataLenData)
+	dataLenEnd := storedOffset + n + binary.MaxVarintLen64
+	if dataLenEnd > uint64(len(uncompressed)) {
+		dataLenEnd = uint64(len(uncompressed))
+	}
+	dataLenData := uncompressed[int(storedOffset+n):dataLenEnd]
+	dataLen, read := binary.Uvarint(dataLenData)
 	n += uint64(read)
 
-	return indexOffset, storedOffset, n, metaLen, dataLen, nil
+	meta = uncompressed[int(storedOffset+n):int(storedOffset+n+metaLen)]
+	data = uncompressed[int(storedOffset+n+metaLen):int(storedOffset+n+metaLen+dataLen)]
+	return meta, data, nil
 }
 
 func (s *Segment) getDocStoredOffsetsOnly(docNum uint64) (indexOffset, storedOffset uint64, err error) {

@@ -17,6 +17,7 @@ package ice
 import (
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 
 	segment "github.com/blugelabs/bluge_segment_api"
@@ -548,4 +549,38 @@ func checkExpectedFields(t *testing.T, fields []string) {
 			t.Errorf("got unexpected field: %s", field)
 		}
 	}
+}
+
+func TestSegmentConcurrency(t *testing.T) {
+	path, cleanup := setupTestDir(t)
+	defer cleanup()
+
+	segPath := filepath.Join(path, "segment.ice")
+	seg, closeF, err := createDiskSegment(buildTestSegmentMulti, segPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		cerr := closeF()
+		if cerr != nil {
+			t.Fatalf("error closing segment: %v", err)
+		}
+	}()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			meta, data, err := seg.getDocStoredMetaAndUnCompressed(0)
+			if err != nil {
+				t.Errorf("getDocStoredMetaAndUnCompressed err: %v", err)
+			}
+			if meta == nil || data == nil {
+				t.Errorf("getDocStoredMetaAndUnCompressed meta or data should not be nil")
+			}
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
 }

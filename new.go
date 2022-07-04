@@ -99,6 +99,7 @@ func initSegmentBase(mem []byte, footer *footer,
 		fieldFSTs:               make(map[uint16]*vellum.FST),
 		storedFieldChunkOffsets: storedFieldChunkOffsets,
 	}
+	sb.initDecompressedStoredFieldChunks(len(storedFieldChunkOffsets))
 	sb.updateSize()
 
 	err := sb.loadDvReaders()
